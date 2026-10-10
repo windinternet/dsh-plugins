@@ -194,3 +194,7 @@ tests/fixtures/**/recorded-*.json
 tmp/
 temp/
 *.tmp
+
+# 本地验证用的隔离 DSH home（含 profile、日志与本机数据），绝不提交
+.tmp-dsh-home/
+.dsh-plugin-data/

@@ -24,7 +24,15 @@ import { dirname } from 'node:path';
 import process from 'node:process';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SKIP_DIRS = new Set(['node_modules', '.git', '.turbo', 'dist', 'coverage', '.pnpm-store']);
+const SKIP_DIRS = new Set([
+  'node_modules',
+  '.git',
+  '.turbo',
+  'dist',
+  'coverage',
+  '.pnpm-store',
+  '.tmp-dsh-home',
+]);
 const errors = [];
 
 /** @param {string} message */
@@ -43,7 +51,14 @@ function collect(dir) {
   for (const name of readdirSync(dir)) {
     if (SKIP_DIRS.has(name)) continue;
     const full = join(dir, name);
-    if (statSync(full).isDirectory()) out.push(...collect(full));
+    // 目录项可能已被删除或符号链接已断，跳过而不是崩掉。
+    let stats;
+    try {
+      stats = statSync(full);
+    } catch {
+      continue;
+    }
+    if (stats.isDirectory()) out.push(...collect(full));
     else out.push(relative(ROOT, full));
   }
   return out;

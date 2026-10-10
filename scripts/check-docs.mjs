@@ -36,6 +36,17 @@ const REQUIRED_DOCS = [
   'docs/references/dsh-plugin-api.md',
 ];
 
+/** 遍历时跳过的目录名。刻意按名字匹配，避免跟随任何依赖与商店目录。 */
+const SKIP_DIRS = new Set([
+  'node_modules',
+  '.git',
+  '.turbo',
+  'dist',
+  '.pnpm-store',
+  '.tmp-dsh-home',
+  'coverage',
+]);
+
 const errors = [];
 
 /** @param {string} message */
@@ -52,10 +63,18 @@ function collectMarkdown(dir) {
   /** @type {string[]} */
   const out = [];
   for (const name of readdirSync(dir)) {
-    if (name === 'node_modules' || name === '.git' || name === '.turbo' || name === 'dist')
-      continue;
+    if (SKIP_DIRS.has(name)) continue;
     const full = join(dir, name);
-    if (statSync(full).isDirectory()) {
+    // stat 而不是 lstat：符号链接要跟随；链断了就跳过，不要让遍历崩掉。
+    // 目录项可能在 readdir 与 stat 之间被删掉（pnpm store 与临时目录很常见），
+    // 因此这里必须容忍失败——检查脚本不该因为一个竞态而报出无关的堆栈。
+    let stats;
+    try {
+      stats = statSync(full);
+    } catch {
+      continue;
+    }
+    if (stats.isDirectory()) {
       out.push(...collectMarkdown(full));
     } else if (name.endsWith('.md')) {
       out.push(relative(ROOT, full));

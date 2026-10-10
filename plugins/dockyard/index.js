@@ -7,6 +7,7 @@
  * 数据流向：local-only。本插件不发起任何出网请求；日志与状态只写在本机数据目录。
  */
 
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
@@ -23,7 +24,10 @@ export const inject = ['tools'];
  * 那份 patch 层能挺过插件升级，所以可调参数都应该放在这里。
  */
 export const Config = z.object({
-  /** 插件数据目录；缺省时由宿主按插件名推导。 */
+  /**
+   * 插件数据目录。缺省时按 DSH_HOME 推导（见 resolveDataDir）。
+   * 建议显式配置，避免跟随工作目录漂移。
+   */
   dataDir: z.string(),
   /** 停止进程时的宽限窗口：先发温和终止信号，超时后升级为强杀。 */
   gracefulTimeoutMs: z.number().default(5000),
@@ -41,17 +45,55 @@ export const Config = z.object({
 const PANEL_ROUTE = '/plugin/dockyard/status';
 
 /**
+ * 安全地记录一条警告。
+ *
+ * 刻意不用 ctx.logger：那是服务属性，未声明 inject 时读取会抛异常，
+ * 而为了写一条警告去 inject logger 并不划算。用 ctx.get 探测式读取即可，
+ * 取不到时退回 console——日志不该成为插件激活失败的原因。
+ *
+ * @param {any} ctx
+ * @param {string} message
+ */
+function warn(ctx, message) {
+  const logger = typeof ctx.get === 'function' ? ctx.get('logger', false) : undefined;
+  if (logger && typeof logger.warn === 'function') {
+    logger.warn(message);
+    return;
+  }
+  console.warn(message);
+}
+
+/**
+ * 推导插件数据目录。
+ *
+ * 刻意不依赖 ctx 上的宿主路径服务：那些服务需要声明 inject 才能读，
+ * 而它们在不同宿主组合里未必存在。这里只用环境变量与家目录，
+ * 让插件在任意组合下都能算出一个确定的位置。
+ *
+ * @param {string | undefined} configured 用户在 Config 里指定的目录
+ * @returns {string}
+ */
+export function resolveDataDir(configured) {
+  if (typeof configured === 'string' && configured.trim() !== '') return configured;
+  const home = process.env.DSH_HOME;
+  if (typeof home === 'string' && home.trim() !== '') {
+    return join(home, 'plugin-data', 'dockyard');
+  }
+  return join(homedir(), '.dsh-plugin-data', 'dockyard');
+}
+
+/**
  * 注册 Host 半侧。
  *
  * @param {any} ctx Cordis 上下文
  * @param {any} config 经 Config 校验后的配置
  */
 export function apply(ctx, config) {
-  const dataDir = config.dataDir ?? join(ctx.baseDir ?? process.cwd(), '.dsh-plugins', 'dockyard');
+  const dataDir = resolveDataDir(config.dataDir);
 
   const service = new DockyardService({
     dataDir,
-    onWarn: (message) => ctx.logger?.warn?.(`[dockyard] ${message}`),
+    onWarn: (message) => warn(ctx, `[dockyard] ${message}`),
   });
 
   // 服务初始化放在 effect 里：加载状态、建目录都属于"本次挂载拥有的资源"。
@@ -69,7 +111,8 @@ export function apply(ctx, config) {
       // 默认保留进程，但把无法确认的状态如实记下来，避免下次读到"运行中"的谎言。
       const result = await service.shutdown({ killProcesses: config.stopProcessesOnUnload });
       if (result.leftRunning > 0) {
-        ctx.logger?.warn?.(
+        warn(
+          ctx,
           `[dockyard] 卸载时有 ${result.leftRunning} 个被托管的进程仍在运行，其状态已标记为 unknown。`,
         );
       }
@@ -315,14 +358,24 @@ export function apply(ctx, config) {
   );
 
   // 面板数据通道：注册一个只读的 exact 路由。
-  // 只在宿主组合了 webServer 服务时注册；否则面板会显示为不可用，而不是让插件挂掉。
-  if (config.enablePanelRoute && ctx.webServer) {
-    // register 返回的就是移除该路由的 disposer，直接交给效果系统即可。
-    ctx.effect(() =>
-      ctx.webServer.register({
+  //
+  // webServer 是可选服务：不声明 inject 就直接读 ctx.webServer 会抛异常，
+  // 而声明成静态 inject 又会让插件在没有 HTTP 服务的组合里完全不激活。
+  // 正确做法是 scoped inject——宿主在服务可用时才运行这段代码，
+  // 服务不存在时插件其余部分照常工作。
+  if (config.enablePanelRoute) {
+    /**
+     * 注册面板路由的 scoped 回调。
+     * @param {any} webCtx 带 webServer 的子上下文
+     */
+    const registerPanelRoute = (webCtx) => {
+      webCtx.webServer.register({
         kind: 'exact',
         path: PANEL_ROUTE,
-        /** @param {import('node:http').IncomingMessage} req @param {import('node:http').ServerResponse} res */
+        /**
+         * @param {import('node:http').IncomingMessage} req
+         * @param {import('node:http').ServerResponse} res
+         */
         handler: async (req, res) => {
           // 只允许本机读取：这个路由暴露的是本机进程信息。
           const remote = req.socket?.remoteAddress ?? '';
@@ -357,11 +410,8 @@ export function apply(ctx, config) {
             );
           }
         },
-      }),
-    );
-  } else if (config.enablePanelRoute) {
-    ctx.logger?.warn?.(
-      '[dockyard] 当前组合没有 webServer 服务，状态面板将不可用；Host 侧工具不受影响。',
-    );
+      });
+    };
+    ctx.effect(() => ctx.inject(['webServer'], registerPanelRoute));
   }
 }

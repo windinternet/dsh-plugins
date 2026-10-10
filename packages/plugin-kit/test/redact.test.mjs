@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { redactString, redactValue, containsSecret } from '../src/redact.js';
 
 test('抹掉 OpenAI 风格密钥', () => {
-  const out = redactString('正在加载 sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345 完成');  // secret-scan:allow: 脱敏用例的输入，必须形似真实密钥才能验证规则命中
+  const out = redactString('正在加载 sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345 完成'); // secret-scan:allow: 脱敏用例的输入，必须形似真实密钥才能验证规则命中
   assert.equal(out, '正在加载 <redacted:openai-key> 完成');
 });
 
 test('抹掉 URL 内嵌凭据但保留用户名与主机', () => {
-  const out = redactString('连接 postgres://admin:s3cr3tpassword@db.internal:5432/app');  // secret-scan:allow: 脱敏用例的输入，必须形似真实凭据才能验证覆盖
+  const out = redactString('连接 postgres://admin:s3cr3tpassword@db.internal:5432/app'); // secret-scan:allow: 脱敏用例的输入，必须形似真实凭据才能验证覆盖
   assert.match(out, /postgres:\/\/admin:<redacted:password>@db\.internal/);
   assert.ok(!out.includes('s3cr3tpassword'));
 });
@@ -50,7 +50,7 @@ test('extraPaths 会被整体替换', () => {
 });
 
 test('keepLength 用等长星号替换', () => {
-  const secret = 'sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345';  // secret-scan:allow: 脱敏用例的输入，必须形似真实密钥才能验证等长替换
+  const secret = 'sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345'; // secret-scan:allow: 脱敏用例的输入，必须形似真实密钥才能验证等长替换
   const out = redactString(secret, { keepLength: true });
   assert.equal(out.length, secret.length);
   assert.match(out, /^\*+$/);
@@ -76,7 +76,7 @@ test('redactValue 在超深结构上截断而不是无限递归', () => {
 });
 
 test('containsSecret 能识别密钥，且不误报占位符', () => {
-  assert.equal(containsSecret('key = sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ01'), true);  // secret-scan:allow: containsSecret 用例的输入，必须形似真实密钥才能验证识别
+  assert.equal(containsSecret('key = sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ01'), true); // secret-scan:allow: containsSecret 用例的输入，必须形似真实密钥才能验证识别
   assert.equal(containsSecret('普通日志，没有敏感内容'), false);
   assert.equal(containsSecret('SOME_API_KEY=your-api-key-here'), false);
 });

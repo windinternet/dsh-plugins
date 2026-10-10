@@ -10,14 +10,13 @@
 
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { scanForApps } from './internal/app-scanner.js';
 import {
-  scanForApps,
   startSupervisedProcess,
   stopSupervisedProcess,
   isProcessAlive,
-  LogBuffer,
-  readTail,
-} from '@dsh-plugins/plugin-kit';
+} from './internal/process-supervisor.js';
+import { LogBuffer, readTail } from './internal/log-buffer.js';
 import { StateStore } from './store.js';
 
 /**
@@ -61,7 +60,7 @@ export class DockyardService {
     this.onWarn = onWarn ?? (() => {});
     this.scanImpl = scanImpl;
     this.store = new StateStore(join(dataDir, 'state.json'));
-    /** @type {Map<string, import('@dsh-plugins/plugin-kit/process').SupervisedProcess>} */
+    /** @type {Map<string, import('./internal/process-supervisor.js').SupervisedProcess>} */
     this.processes = new Map();
     /** @type {Map<string, LogBuffer>} */
     this.buffers = new Map();

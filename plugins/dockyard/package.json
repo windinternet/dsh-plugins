@@ -25,7 +25,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@dsh-plugins/plugin-kit": "workspace:*"
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
+    "@deepseek-ai/schemastery": "3.18.4"
   },
   "dsh": {
     "bundle": {
@@ -37,5 +38,5 @@
       "inject": []
     }
   },
-  "$comment": "依赖 @dsh-plugins/plugin-kit（工作区内）。@deepseek-ai/dsh-tools 与 @deepseek-ai/schemastery 由宿主提供，刻意不声明为依赖：它们不在公开 npm 上，声明会让 pnpm install 失败。插件在宿主进程内加载，运行时通过 Node 解析取得它们。"
+  "$comment": "插件必须能独立安装到任意 profile，因此依赖只用可安装的 spec（真实版本号）。共享工具以同步副本形式放在 src/internal/，原因见各文件头。宿主内部包必须声明为真实依赖：实测外部插件无法凭空解析它们。安装时用 file: 或 registry spec，link: 不会解析依赖树。"
 }

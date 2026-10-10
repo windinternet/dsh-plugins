@@ -20,16 +20,28 @@ kind: 'package-reference'
 
 ## 使用本包
 
-### 前置
+### 安装
 
-插件需要一个数据目录存放状态文件与日志。默认取 `config.dataDir`；
-未配置时用宿主工作目录下的 `.dsh-plugins/dockyard`。
-建议在 profile 的 patch 里显式指定，避免跟随工作目录漂移：
+插件依赖 `@deepseek-ai/dsh-tools` 与 `@deepseek-ai/schemastery`（宿主同版本）。
+这两个包在公开 npm 上有发布，但**必须用 `file:` 或 registry spec 安装**：
+
+```bash
+dsh plugin --profile desktop add "file:/绝对路径/dsh-plugins/plugins/dockyard"
+```
+
+用 `link:` 会只建符号链接、不解析依赖树，插件启动时会以一行 `failed to import` 失败。
+这一点是实测结论，详见 [`docs/references/dsh-plugin-api.md`](../../docs/references/dsh-plugin-api.md)。
+
+### 数据目录
+
+状态文件与日志需要一个数据目录。默认按 `DSH_HOME` 推导为
+`$DSH_HOME/plugin-data/dockyard`，`DSH_HOME` 不存在时退回 `~/.dsh-plugin-data/dockyard`。
+建议在 profile 的 patch 里显式指定，避免跟随环境漂移：
 
 ```yaml
 - id: dockyard
   config:
-    dataDir: /Users/you/.dsh-plugins/dockyard
+    dataDir: /Users/you/.dsh/plugin-data/dockyard
 ```
 
 ### 给智能体的工具
@@ -134,7 +146,11 @@ Agent 看到 `dockyard_*` 这五个工具的名称、描述与参数 schema。�
 - **自动识别只覆盖声明式入口**（`package.json` 的 scripts、Python 入口文件、
   `scripts/` 或 `bin/` 下可执行脚本），不解析任意脚本内容。
 - **面板是只读的。** 启停操作目前通过 agent 工具完成；面板里直接操作留待下一步。
-- **视觉验证未在全部主题下完成。** 面板只用主题 token，但深色/浅色对比仅做过静态审查。
+- **视觉验证未完成。** 面板只用主题 token，但**没有在真实浏览器里看过**：
+  状态条的槽位注册、空状态隐藏、明暗主题对比都只有代码层面的保证。
+  数据通道本身已实测可用（`/plugin/dockyard/status` 返回真实数据）。
+- **工具名与注册已实测，但模型调用未实测。** 插件激活时成功注册了六个工具定义，
+  没有用真实模型跑过一次完整调用。
 
 ## 失败行为
 
@@ -161,5 +177,17 @@ Agent 看到 `dockyard_*` 这五个工具的名称、描述与参数 schema。�
   信号没生效、进程组没回收这类问题只有真实进程才能暴露。
 - 运行测试：`pnpm --filter @dsh-plugins/dockyard test`
 - 全量检查：`pnpm check`
+- `src/internal/` 下的四个文件是 `packages/plugin-kit/src/` 的**同步副本**。
+  为什么要复制：插件必须能独立安装，而外部 profile 不认可 `workspace:*`。
+  所以改共享逻辑时要**两边一起改**，再跑 `pnpm check`（两个包的测试都会被跑到）。
+  出现第二个需要同一批工具的插件时，正确的做法是把 plugin-kit 发布到 npm 并用真实版本号引用。
+- 真实安装验证（最有价值的一步，`pnpm check` 覆盖不到）：
+
+  ```bash
+  DH=$(mktemp -d)/dsh-home
+  DSH_HOME=$DH dsh plugin --profile web add "file:$PWD/plugins/dockyard"
+  DSH_HOME=$DH dsh --profile web --port 19393 --no-open   # 观察是否有 did not activate
+  curl -s http://127.0.0.1:19393/plugin/dockyard/status   # 应返回 {"ok":true,...}
+  ```
 
 </details>

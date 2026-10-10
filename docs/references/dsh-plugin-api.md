@@ -136,6 +136,35 @@ window.__ModuleLoader__.load({
 宿主自己的管理页（`dsh-client-ui-plugin-manager`）就是通过 `ctx.slots.inject()` 注册
 `plugins` 侧栏入口与它的 `main` 面板实现的。新插件应模仿这个模式。
 
+## 依赖解析：外部插件的最大陷阱
+
+这一节是**实测结论**，不是推断。踩过一次，记在这里避免重复。
+
+**外部插件无法凭空解析宿主内部包。** Node 的解析链从插件的 `node_modules` 往上走，
+到不了 DSH 安装目录里的 `app.asar/dsh/node_modules`，部署里也没有会补上这一步的投影目录。
+现象是安装看起来成功，启动时报一行 `failed to import`，没有更详细的错误。
+
+因此：
+
+1. **`@deepseek-ai/dsh-tools`、`@deepseek-ai/schemastery` 这类包必须声明为真实依赖**，
+   带精确版本，与宿主基线一致（当前 `dsh-tools@0.2.0-rc.2`、`schemastery@3.18.4`）。
+   它们在公开 npm 上有发布（`next` 标签）。
+2. **安装时必须用 `file:` 或 registry spec，不能用 `link:`。**
+   `link:` 只建立符号链接，**不会解析该包的依赖树**，依赖仍然缺失。
+3. **`workspace:*` 在外部 profile 里必然失败。** profile 的 pnpm workspace 只包含它自己，
+   报错是 `ERR_PNPM_WORKSPACE_PKG_NOT_FOUND`。插件要能独立安装，就不能依赖工作区协议。
+
+### 服务属性必须先声明再读
+
+`ctx.<service>` 的读取受 inject 约束：未声明的服务属性会抛
+`cannot get property "X" without inject`，而**这个错误发生在激活期**，插件直接不激活。
+
+- 必需的服务：静态声明 `export const inject = ['tools']`。
+- 可选的服务（例如 `webServer`、`logger`）：用 `ctx.inject(['webServer'], (ctx) => { ... })`
+  建一个子 fiber，服务可用时才运行。不要用 `ctx.webServer ? ...` 去探测。
+- `ctx.baseDir` 之类也不能直接读。需要路径时用环境变量（`DSH_HOME`）与 `os.homedir()` 推导。
+- 想读服务而不想引起激活依赖，可以用 `ctx.get('logger', false)`。
+
 ## 安装与启用
 
 安装走 DSH 的 `plugin_manager`，`action: install_bundle`，`target` 为插件包的绝对目录。
