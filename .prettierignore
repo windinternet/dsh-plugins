@@ -1,0 +1,21 @@
+node_modules/
+dist/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# 构建产物与缓存
+.pnpm-store/
+.vite/
+
+# 编辑器与操作系统
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# 生成物由生成器拥有，不让格式化工具改写它。
+# 原因：一旦 Prettier 改了生成物的格式，pnpm docs:index 重新生成就又会不一致，
+# docs:check 会因此反复失败。让生成器的输出保持唯一权威，两边就不再打架。
+docs/generated/
+pnpm-lock.yaml

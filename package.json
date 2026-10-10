@@ -1,0 +1,39 @@
+{
+  "name": "dsh-plugins",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DeepSeek Harness 插件集合：一切皆插件，一切可定制。",
+  "license": "MIT",
+  "packageManager": "pnpm@10.10.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "create-plugin": "node scripts/create-plugin.mjs",
+    "hooks:install": "node scripts/install-hooks.mjs",
+    "verify:manifests": "node scripts/verify-manifests.mjs",
+    "verify:plugin-packages": "node scripts/verify-plugin-packages.mjs",
+    "docs:check": "node scripts/check-docs.mjs",
+    "docs:index": "node scripts/gen-docs-index.mjs",
+    "security:scan": "node scripts/check-secrets.mjs",
+    "check": "pnpm health && pnpm format:check && pnpm lint && pnpm typecheck && pnpm verify:manifests && pnpm docs:check && pnpm security:scan && pnpm test",
+    "health": "node scripts/check-repo-health.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@types/node": "^22.13.0",
+    "eslint": "^9.20.0",
+    "globals": "^15.15.0",
+    "prettier": "^3.5.0",
+    "turbo": "^2.4.0",
+    "typescript": "^5.8.0"
+  }
+}

@@ -1,0 +1,44 @@
+name: check
+
+# 本仓库是公开仓库，因此这里刻意不注入任何 secret，工作流只需要只读权限。
+# 将来若引入发布流程，凭据必须走 GitHub Actions Secrets，且不得回显到日志。
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.10.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      # 密钥扫描单独跑一步，并且放在最前面：
+      # 它是唯一一条"失败意味着必须立即人工处置"的检查，
+      # 混在 pnpm check 里会让人以为是普通的质量问题。
+      - name: 密钥与隐私扫描
+        run: pnpm security:scan
+
+      - name: 全量检查
+        run: pnpm check

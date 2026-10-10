@@ -1,0 +1,21 @@
+{
+  "name": "@dsh-plugins/plugin-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "写 DSH 插件用的共享底座：边界解析、脱敏、应用识别、进程监管、日志环形缓冲。",
+  "exports": {
+    ".": "./src/index.js",
+    "./scan": "./src/app-scanner.js",
+    "./process": "./src/process-supervisor.js",
+    "./log": "./src/log-buffer.js",
+    "./redact": "./src/redact.js",
+    "./manifest": "./src/manifest.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

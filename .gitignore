@@ -147,3 +147,50 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# ============================================================================
+# 密钥与隐私（本仓库为公开仓库，这一节是硬要求，不要删除任何条目）
+# 改动这一节前先读 SECURITY.md。
+# ============================================================================
+
+# 凭据与密钥材料
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+credentials.json
+service-account*.json
+.credentials.yaml
+.secrets
+secrets.json
+*.secret
+
+# 工具级凭据
+.npmrc.local
+.pypirc
+.netrc
+.git-credentials
+terraform.tfvars
+*.tfstate
+*.tfstate.backup
+
+# 本机私有配置（插件运行时可能落地个人路径与令牌）
+*.local.json
+*.local.yaml
+*.local.yml
+local.settings.json
+
+# 本机数据库与运行时数据
+.data/
+*.sqlite
+*.sqlite3
+
+# 测试夹具中可能携带真实密钥的快照
+tests/fixtures/**/recorded-*.json
+
+# 临时目录
+tmp/
+temp/
+*.tmp

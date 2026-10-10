@@ -1,0 +1,32 @@
+/**
+ * __PACKAGE_NAME__ 的 Host 半侧入口。
+ *
+ * 这里是适配层：只负责与宿主 API 对接，真正的逻辑放在 src/ 下，
+ * 以便脱离宿主单独测试。
+ *
+ * 约束（见 docs/design-docs/plugin-architecture.md）：
+ * - 不在模块加载时做任何副作用；一切资源注册都在 apply 内。
+ * - 每个注册都要有 disposer，用 ctx.effect 或 ctx.on。
+ */
+
+/** 本插件需要哪些宿主服务。缺少时宿主会让本行保持未激活，而不是抛异常。 */
+// export const inject = ['tools'];
+
+/**
+ * 插件配置的校验模式。声明后宿主会校验该行的 config，用户可用 cordis.patch.yml 覆盖。
+ */
+// export const Config = Schema.object({});
+
+/**
+ * @param {any} ctx Cordis 上下文
+ * @param {any} config 该行的 config
+ */
+export function apply(ctx, config) {
+  void config;
+  ctx.effect(() => {
+    // 在这里注册资源，并返回清理函数：
+    // const dispose = ctx.tools.register({ ... });
+    // return () => dispose();
+    return () => {};
+  });
+}

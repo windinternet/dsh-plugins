@@ -1,0 +1,11 @@
+# 纯配置型 bundle：不写代码，只插入一个已有的 MCP client 行。
+# 请把 url 换成真实的 MCP server 地址；不要把带令牌的 URL 提交进仓库，
+# 用 !!js 从环境变量取值，见 docs/references/dsh-plugin-api.md。
+- insert:
+    - id: __PLUGIN_ID__
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: __PLUGIN_ID__
+        transport: streamable-http
+        url: http://127.0.0.1:3000/mcp
+        failOnStartupError: true

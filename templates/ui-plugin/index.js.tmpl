@@ -1,0 +1,14 @@
+/**
+ * __PACKAGE_NAME__ 的 Host 半侧入口。
+ *
+ * 本插件含界面：Host 半侧负责数据与资源，Client 半侧（client.js）负责呈现。
+ * 两者通过包名关联，见 docs/design-docs/plugin-architecture.md。
+ */
+
+export function apply(ctx, config) {
+  void config;
+  ctx.effect(() => {
+    // 注册数据源、工具或事件监听；返回清理函数。
+    return () => {};
+  });
+}

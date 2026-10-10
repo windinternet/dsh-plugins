@@ -1,0 +1,5 @@
+#!/bin/sh
+# 提交前检查：只扫描暂存区，因此不会因为工作区的无关文件而阻塞提交。
+# 用 git commit --no-verify 可绕过，但请先读 SECURITY.md 的处置流程。
+set -e
+node scripts/check-secrets.mjs --staged

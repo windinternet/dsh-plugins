@@ -1,0 +1,54 @@
+/**
+ * __PACKAGE_NAME__ 的 Client（浏览器）半侧。
+ *
+ * 硬约束，违反不会在构建期报错：
+ * - 只允许 require('react')；React 由浏览器模块表提供，不要自行安装或引 CDN。
+ * - 禁止 require 任何 @deepseek-ai/dsh-client-* 包。
+ * - 样式只用 --dsw-alias-* 主题 token；字面色只能用于插画。
+ * - 不要操作组件外的 DOM，不要往 document.body 追加内容。
+ *
+ * 工厂必须无副作用：定义与返回，注册都放在 apply 里。
+ */
+window.__ModuleLoader__.load({
+  id: '__PACKAGE_NAME__',
+  factory(require) {
+    const React = require('react');
+
+    /**
+     * 插件的界面主体。
+     * @param {{ t?: (key: string) => string }} props
+     */
+    function Panel(props) {
+      const t = props.t ?? ((key) => key);
+      return React.createElement(
+        'div',
+        {
+          style: {
+            padding: '12px 16px',
+            color: 'var(--dsw-alias-text-1, inherit)',
+            fontSize: 13,
+          },
+        },
+        t('placeholder'),
+      );
+    }
+
+    return {
+      inject: ['slots'],
+      apply(ctx) {
+        // 槽位名必须来自 docs/references/dsh-plugin-api.md 的已确认清单。
+        // 换槽位前先用 cordis_inspect_query 查 Slots.listSubTree 确认它存在及其 props。
+        ctx.slots.inject('sidebar.footer.action', () =>
+          ctx.slots.register(
+            {
+              name: 'sidebar.footer.action',
+              id: '__PLUGIN_ID__',
+              order: 50,
+            },
+            Panel,
+          ),
+        );
+      },
+    };
+  },
+});

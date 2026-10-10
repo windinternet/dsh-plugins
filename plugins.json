@@ -1,0 +1,24 @@
+{
+  "$comment": "插件注册表：本仓库所有插件与共享包的唯一权威清单。scripts/verify-manifests.mjs 用它与本机事实比对，scripts/gen-docs-index.mjs 用它生成 docs/generated/plugins.md。plugins[] 条目是可安装的插件，必须声明 kind（host/ui/mcp 的组合）；sharedPackages[] 条目只是被依赖的库，不是插件，因此不需要 kind。",
+  "schemaVersion": 1,
+  "plugins": [
+    {
+      "id": "dockyard",
+      "packageName": "@dsh-plugins/dockyard",
+      "dir": "plugins/dockyard",
+      "kind": "host+ui",
+      "summary": "本机开发服务的可观测托管台：扫描项目、受监管地启停应用、tail 日志，并在 DSH 侧栏提供运行面板。",
+      "status": "experimental",
+      "dataFlow": "local-only",
+      "specs": ["docs/product-specs/dockyard.md"]
+    }
+  ],
+  "sharedPackages": [
+    {
+      "id": "plugin-kit",
+      "packageName": "@dsh-plugins/plugin-kit",
+      "dir": "packages/plugin-kit",
+      "summary": "写 DSH 插件需要的共享底座：bundle 约定、脱敏、进程与日志工具、槽位与主题 token 常量。"
+    }
+  ]
+}
