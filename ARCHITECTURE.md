@@ -50,7 +50,7 @@ dsh-plugins/
 ├─ packages/                 共享库。被插件依赖，自身不是插件
 ├─ templates/                插件模板。create-plugin 从注册表条目与模板生成骨架
 ├─ scripts/                  工具与检查脚本（脚手架、校验、生成、扫描）
-├─ tests/                    跨包的结构性测试
+├─ types/host-stubs/         宿主包的本地类型存根（见文件头说明）
 ├─ docs/                     知识库：唯一事实源
 │  ├─ design-docs/           核心理念、架构决策、ADR
 │  ├─ product-specs/         每个插件要做什么与验收标准
@@ -97,6 +97,8 @@ templates/*  ──被读取──▶  scripts/create-plugin.mjs
 规则：
 
 1. `packages/plugin-kit` 是最底层，只允许依赖 Node 内置模块。它不得依赖任何插件。
+   插件的可安装性要求它与插件之间不能使用工作区协议，因此插件内保留同步副本，
+   见 [`docs/design-docs/plugin-architecture.md`](docs/design-docs/plugin-architecture.md)。
 2. 插件之间不得互相 import。需要共享时把逻辑下沉到 `packages/`。
 3. `plugins.json` 是数据，不是代码。只有 `scripts/` 读它，插件不读它。
 4. `templates/` 只被 `scripts/create-plugin.mjs` 读取，不参与任何构建。
