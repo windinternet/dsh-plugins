@@ -4,17 +4,19 @@
 的思路：给智能体一张**地图**而不是一本手册，把知识库版本化，采用渐进式披露，
 并且让结构可被机械检查。
 
-| 需要了解什么               | 唯一事实源                                                                 | 何时更新               |
-| -------------------------- | -------------------------------------------------------------------------- | ---------------------- |
-| 仓库目录、依赖方向、包边界 | [`../ARCHITECTURE.md`](../ARCHITECTURE.md)                                 | 新增包或改变边界时     |
-| 核心理念与工程取舍         | [`design-docs/core-beliefs.md`](design-docs/core-beliefs.md)               | 原则本身变化时         |
-| 插件机制如何运作           | [`design-docs/plugin-architecture.md`](design-docs/plugin-architecture.md) | Host/Client 契约变化时 |
-| DSH 插件 API 事实          | [`references/dsh-plugin-api.md`](references/dsh-plugin-api.md)             | 宿主版本升级时         |
-| 插件要做什么、验收标准     | [`product-specs/`](product-specs/)                                         | 用户可感知的承诺变化时 |
-| 正在进行的工作             | [`exec-plans/active/`](exec-plans/active/)                                 | 任务跨越多个提交时     |
-| 已完成的交付记录           | [`exec-plans/completed/`](exec-plans/completed/)                           | 活跃计划完成时         |
-| 生成物（禁止手改）         | [`generated/`](generated/)                                                 | 由脚本生成             |
-| 已知债务                   | [`tech-debt-tracker.md`](tech-debt-tracker.md)                             | 明确延后一个问题时     |
+| 需要了解什么                | 唯一事实源                                                                             | 何时更新                |
+| --------------------------- | -------------------------------------------------------------------------------------- | ----------------------- |
+| 仓库目录、依赖方向、包边界  | [`../ARCHITECTURE.md`](../ARCHITECTURE.md)                                             | 新增包或改变边界时      |
+| 核心理念与工程取舍          | [`design-docs/core-beliefs.md`](design-docs/core-beliefs.md)                           | 原则本身变化时          |
+| 插件机制如何运作            | [`design-docs/plugin-architecture.md`](design-docs/plugin-architecture.md)             | Host/Client 契约变化时  |
+| DSH 插件 API 事实           | [`references/dsh-plugin-api.md`](references/dsh-plugin-api.md)                         | 宿主版本升级时          |
+| 工具定义 / JSON Schema 契约 | [`references/dsh-plugin-tools.md`](references/dsh-plugin-tools.md)                     | `defineTool` 契约变化时 |
+| 宿主升级导致启动失败        | [`references/dsh-plugin-upgrade-failure.md`](references/dsh-plugin-upgrade-failure.md) | 再次发生同类事故时      |
+| 插件要做什么、验收标准      | [`product-specs/`](product-specs/)                                                     | 用户可感知的承诺变化时  |
+| 正在进行的工作              | [`exec-plans/active/`](exec-plans/active/)                                             | 任务跨越多个提交时      |
+| 已完成的交付记录            | [`exec-plans/completed/`](exec-plans/completed/)                                       | 活跃计划完成时          |
+| 生成物（禁止手改）          | [`generated/`](generated/)                                                             | 由脚本生成              |
+| 已知债务                    | [`tech-debt-tracker.md`](tech-debt-tracker.md)                                         | 明确延后一个问题时      |
 
 ## 为什么这样分层
 

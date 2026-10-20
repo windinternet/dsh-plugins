@@ -22,7 +22,12 @@ declare module '@deepseek-ai/schemastery' {
   const z: {
     string(): SchemaLike;
     number(): SchemaLike;
+    natural(): SchemaLike;
     boolean(): SchemaLike;
+    /** 任意 JSON 值。用于"形状由使用方自己解析"的字段，例如端口范围。 */
+    any(): SchemaLike;
+    const(value: unknown): SchemaLike;
+    union(alternatives: unknown[]): SchemaLike;
     object(shape: Record<string, unknown>): SchemaLike;
     array(inner: unknown): SchemaLike;
   };
@@ -31,20 +36,36 @@ declare module '@deepseek-ai/schemastery' {
 }
 
 declare module '@deepseek-ai/dsh-tools' {
-  /** 参数声明：schema 部分按 JSON Schema 子集描述，这里只约束形状。 */
+  /**
+   * 参数声明：schema 部分按 JSON Schema 子集描述，这里只约束形状。
+   *
+   * `enum` 与属性级 `required` 都是从本机安装包核对过的真实字段
+   * （见 docs/references/dsh-plugin-tools.md），不是猜的。
+   */
   interface ParameterSpec {
     type: 'string' | 'number' | 'integer' | 'boolean' | 'null' | 'array' | 'object' | 'json';
     required?: boolean;
     description?: string;
+    title?: string;
+    default?: unknown;
+    examples?: unknown[];
+    enum?: unknown[];
+    const?: unknown;
     items?: ParameterSpec;
     properties?: Record<string, ParameterSpec>;
     additionalProperties?: boolean;
     oneOf?: ParameterSpec[];
   }
 
+  /** 工具结果的展示内容块。当前宿主只支持文本块。 */
+  interface ContentBlock {
+    type: 'text';
+    text: string;
+  }
+
   interface OutputSpec {
     schema: unknown;
-    render: (args: any, value: any) => { type: string; text: string }[];
+    render: (args: any, value: any) => ContentBlock[];
   }
 
   /** 执行上下文。只声明本仓库会读的字段。 */
@@ -59,6 +80,12 @@ declare module '@deepseek-ai/dsh-tools' {
     parameters: Record<string, ParameterSpec>;
     output: OutputSpec;
     execute: (args: any, exec: ToolExecution) => Promise<any>;
+    /** 声明式超时。注册表不强制，供超时策略使用。 */
+    timeoutMs?: number;
+    /** 该调用能否与其他调用并发。 */
+    isConcurrencySafe?: (args: any) => boolean;
+    /** 是否延迟装载定义。 */
+    deferLoading?: boolean;
   }
 
   /**

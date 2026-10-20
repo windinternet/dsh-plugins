@@ -1,0 +1,4 @@
+{
+  "title": "浏览器自动化（CDP）",
+  "description": "让智能体用 CDP 直接驱动一个真实 Chromium：自适应端口、独立 profile、结构化页面操作。"
+}

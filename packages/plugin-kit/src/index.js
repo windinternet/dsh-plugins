@@ -18,6 +18,10 @@ export { LogBuffer, readTail } from './log-buffer.js';
 
 export { redactString, redactValue, containsSecret } from './redact.js';
 
+export { defineTool, compilePropertyMap, compileNode, validateArgs } from './tool-definition.js';
+
+export { normalizeConfig } from './config.js';
+
 export {
   readPluginManifest,
   checkThemeTokenUsage,

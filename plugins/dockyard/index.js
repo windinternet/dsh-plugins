@@ -9,8 +9,8 @@
 
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import z from '@deepseek-ai/schemastery';
-import { defineTool } from '@deepseek-ai/dsh-tools';
+import { normalizeConfig } from './src/internal/config.js';
+import { defineTool } from './src/internal/tool-definition.js';
 import { DockyardService } from './src/service.js';
 
 /** 稳定的 Loader 标识。 */
@@ -20,24 +20,23 @@ export const name = 'dockyard';
 export const inject = ['tools'];
 
 /**
- * 插件配置。用户在 profile 的 cordis.patch.yml 里覆盖这些字段；
+ * 插件配置的规格表。用户在 profile 的 cordis.patch.yml 里覆盖这些字段；
  * 那份 patch 层能挺过插件升级，所以可调参数都应该放在这里。
+ *
+ * **为什么不是 schemastery 的 `Config`。** 声明 `Config` 需要 import 宿主自带的
+ * schemastery；一旦写成依赖，pnpm 会在 profile 里装出第二份宿主包，遮住宿主自带的
+ * 版本——宿主升级后精确版本校验失败，`tools` 行被禁用，所有工具类插件一起失效。
+ * 配置校验不是激活的必要条件，因此用规格表自行归一化，不合法就回退默认值并记诊断。
+ *
+ * @type {Record<string, import('./src/internal/config.js').ConfigField>}
  */
-export const Config = z.object({
-  /**
-   * 插件数据目录。缺省时按 DSH_HOME 推导（见 resolveDataDir）。
-   * 建议显式配置，避免跟随工作目录漂移。
-   */
-  dataDir: z.string(),
-  /** 停止进程时的宽限窗口：先发温和终止信号，超时后升级为强杀。 */
-  gracefulTimeoutMs: z.number().default(5000),
-  /** 升级为强杀后等待进程消失的上限。 */
-  killTimeoutMs: z.number().default(3000),
-  /** 插件卸载时是否连带停止被托管的进程。默认否——进程不该随客户端消失。 */
-  stopProcessesOnUnload: z.boolean().default(false),
-  /** 是否注册面板所需的只读 HTTP 路由。关闭后 UI 面板显示为不可用。 */
-  enablePanelRoute: z.boolean().default(true),
-});
+const CONFIG_SPEC = {
+  dataDir: { type: 'string' },
+  gracefulTimeoutMs: { type: 'number', default: 5000 },
+  killTimeoutMs: { type: 'number', default: 3000 },
+  stopProcessesOnUnload: { type: 'boolean', default: false },
+  enablePanelRoute: { type: 'boolean', default: true },
+};
 
 /**
  * 面板路由的路径。用固定前缀而不是随机值，便于在浏览器与日志里辨认。
@@ -86,9 +85,10 @@ export function resolveDataDir(configured) {
  * 注册 Host 半侧。
  *
  * @param {any} ctx Cordis 上下文
- * @param {any} config 经 Config 校验后的配置
+ * @param {any} rawConfig profile patch 里的原始 config
  */
-export function apply(ctx, config) {
+export function apply(ctx, rawConfig) {
+  const config = normalizeConfig(CONFIG_SPEC, rawConfig, (message) => warn(ctx, message));
   const dataDir = resolveDataDir(config.dataDir);
 
   const service = new DockyardService({

@@ -35,7 +35,14 @@ DeepSeek Harness（DSH）的插件集合。DSH 的核心理念是"一切皆插�
 - **`docs/generated/` 禁止手改。** 它由 `pnpm docs:index` 生成，`pnpm docs:check` 会比对。
 - **新增插件必须先登记 [`plugins.json`](plugins.json)。** 它是插件的唯一权威清单，
   `pnpm verify:manifests` 会做双向比对（注册表 ↔ 磁盘）。
+- **插件清单必须声明 `engines.dsh`。** 宿主 0.2.1 起按它做兼容性裁决；不声明就只能
+  靠运行时碰运气，而失败现象往往是"整个启动挂掉"而不是一条清楚的提示。
 - **插件包必须声明 `dsh.bundle.patch`**，UI 插件还要声明 `dsh.client` 与 `./client` 导出。
+- **插件不得声明或 import 任何 `@deepseek-ai/*` 宿主包**（含 peer / optional）。
+  pnpm 会把它装进 profile 并按包名遮住宿主自带的那份，宿主一升级就触发精确版本校验失败、
+  `tools` 行被禁用，全部工具类插件一起失效。需要 `defineTool` 之类能力时用包内实现，
+  兼容性用 `engines.dsh` 声明。由 `pnpm verify:plugin-packages` 强制，
+  事故复盘见 [`docs/references/dsh-plugin-upgrade-failure.md`](docs/references/dsh-plugin-upgrade-failure.md)。
 - **不要手写用户 profile 的 `package.json` 或 `cordis.patch.yml`。** 安装走 DSH 的
   `plugin_manager` 的 `install_bundle`，它会完成装机与组合步骤。
 

@@ -1,6 +1,6 @@
 {
   "name": "@dsh-plugins/dockyard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "本机开发服务的可观测托管台：扫描项目、受监管地启停应用、tail 日志，并在 DSH 侧栏提供状态面板。",
@@ -24,10 +24,6 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json"
   },
-  "dependencies": {
-    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
-    "@deepseek-ai/schemastery": "3.18.4"
-  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -38,5 +34,8 @@
       "inject": []
     }
   },
-  "$comment": "插件必须能独立安装到任意 profile，因此依赖只用可安装的 spec（真实版本号）。共享工具以同步副本形式放在 src/internal/，原因见各文件头。宿主内部包必须声明为真实依赖：实测外部插件无法凭空解析它们。安装时用 file: 或 registry spec，link: 不会解析依赖树。"
+  "$comment": "本插件没有任何依赖：工具定义与配置归一化用包内实现（src/internal/）。绝不要把 @deepseek-ai/* 宿主包写进 dependencies 或 peerDependencies —— pnpm 会把它装进 profile 并按包名遮住宿主自带的那份，宿主一升级就触发精确版本校验失败、tools 行被禁用（docs/references/dsh-plugin-upgrade-failure.md）。兼容性用 engines.dsh 声明。",
+  "engines": {
+    "dsh": "^0.2.0-rc.2"
+  }
 }

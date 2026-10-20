@@ -136,23 +136,30 @@ window.__ModuleLoader__.load({
 宿主自己的管理页（`dsh-client-ui-plugin-manager`）就是通过 `ctx.slots.inject()` 注册
 `plugins` 侧栏入口与它的 `main` 面板实现的。新插件应模仿这个模式。
 
-## 依赖解析：外部插件的最大陷阱
+## 依赖解析：外部插件最大的坑（2026-10-20 修订）
 
-这一节是**实测结论**，不是推断。踩过一次，记在这里避免重复。
+> **这一节的前一版给错了建议，导致过一次真实的启动事故。** 旧结论是"宿主内部包无法凭空解析，
+> 所以要把 `@deepseek-ai/dsh-tools` / `@deepseek-ai/schemastery` 声明成真实依赖"。
+> 那确实能让插件 import 成功，但 pnpm 会把这份副本装进 profile 的 `node_modules`；
+> 宿主按**裸包名**解析配置树里的行，profile 里的同名包会抢先命中、遮住宿主自带的那份。
+> 宿主升级后精确版本校验失败，`tools` 行被直接禁用，所有工具类插件一起失效。
+> 完整根因链与处理步骤见 [`dsh-plugin-upgrade-failure.md`](dsh-plugin-upgrade-failure.md)。
 
-**外部插件无法凭空解析宿主内部包。** Node 的解析链从插件的 `node_modules` 往上走，
-到不了 DSH 安装目录里的 `app.asar/dsh/node_modules`，部署里也没有会补上这一步的投影目录。
-现象是安装看起来成功，启动时报一行 `failed to import`，没有更详细的错误。
+**现行规则（机械检查强制，见 `scripts/verify-plugin-packages.mjs`）：**
 
-因此：
+1. **插件不得声明任何 `@deepseek-ai/*` 依赖。** `dependencies`、`peerDependencies`、
+   `optionalDependencies` 都不行——peer 会被 pnpm 自动安装，同样落进 profile。
+2. **需要 `defineTool` / 配置校验这类宿主动能时，用包内实现。**
+   本仓库的规范位置是 `packages/plugin-kit/src/`，插件内保留 `src/internal/` 同步副本；
+   实现只产出宿主接受的 JSON Schema 子集即可（见 [`dsh-plugin-tools.md`](dsh-plugin-tools.md)）。
+3. **需要宿主服务时用 `ctx.inject` / `ctx.get`**：这些是运行期传入的对象，不引入任何包。
+4. **兼容性用 `engines.dsh` 声明**（例如 `"^0.2.0-rc.2"`）。宿主 0.2.1 起会在启动/安装时
+   按它做版本裁决，给出明确提示而不是让启动挂在半路。
+5. **安装用 `file:` 或 registry spec，不能用 `link:`**；`workspace:*` 在外部 profile 里
+   必然失败（`ERR_PNPM_WORKSPACE_PKG_NOT_FOUND`）。
 
-1. **`@deepseek-ai/dsh-tools`、`@deepseek-ai/schemastery` 这类包必须声明为真实依赖**，
-   带精确版本，与宿主基线一致（当前 `dsh-tools@0.2.0-rc.2`、`schemastery@3.18.4`）。
-   它们在公开 npm 上有发布（`next` 标签）。
-2. **安装时必须用 `file:` 或 registry spec，不能用 `link:`。**
-   `link:` 只建立符号链接，**不会解析该包的依赖树**，依赖仍然缺失。
-3. **`workspace:*` 在外部 profile 里必然失败。** profile 的 pnpm workspace 只包含它自己，
-   报错是 `ERR_PNPM_WORKSPACE_PKG_NOT_FOUND`。插件要能独立安装，就不能依赖工作区协议。
+**验证依赖是否干净：** 安装后看 profile 目录——`node_modules/@deepseek-ai/` 应当不存在或为空。
+一旦出现内容，说明还有插件在声明宿主包依赖，下一次宿主升级就会重演事故。
 
 ### 服务属性必须先声明再读
 

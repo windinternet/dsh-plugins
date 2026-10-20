@@ -26,7 +26,8 @@
     "docs:check": "node scripts/check-docs.mjs",
     "docs:index": "node scripts/gen-docs-index.mjs",
     "security:scan": "node scripts/check-secrets.mjs",
-    "check": "pnpm health && pnpm format:check && pnpm lint && pnpm typecheck && pnpm verify:manifests && pnpm docs:check && pnpm security:scan && pnpm test"
+    "check": "pnpm health && pnpm format:check && pnpm lint && pnpm typecheck && pnpm verify:manifests && pnpm verify:plugin-packages && pnpm test:repo && pnpm docs:check && pnpm security:scan && pnpm test",
+    "test:repo": "node --test tests/*.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",

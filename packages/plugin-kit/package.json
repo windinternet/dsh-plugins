@@ -11,6 +11,8 @@
     "./log": "./src/log-buffer.js",
     "./redact": "./src/redact.js",
     "./manifest": "./src/manifest.js",
+    "./tool": "./src/tool-definition.js",
+    "./config": "./src/config.js",
     "./package.json": "./package.json"
   },
   "scripts": {

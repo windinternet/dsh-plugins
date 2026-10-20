@@ -1,0 +1,44 @@
+{
+  "name": "@dsh-plugins/browser-cdp",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "description": "让智能体用 CDP 直接驱动一个真实 Chromium：自适应端口、独立 profile、结构化页面操作。",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./skill": "./skill/index.js"
+  },
+  "icon": "./icon.svg",
+  "files": [
+    "index.js",
+    "client.js",
+    "src",
+    "skill",
+    "locale",
+    "icon.svg",
+    "cordis.patch.yml"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "skill:sync": "node scripts/sync-skill.mjs"
+  },
+  "engines": {
+    "dsh": "^0.2.0-rc.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": []
+    }
+  },
+  "$comment": "本插件没有任何依赖：CDP 走 Node 内置全局 WebSocket，进程走 node:child_process，工具定义与配置归一化用包内实现（src/internal/）。绝不要把 @deepseek-ai/* 宿主包写进 dependencies 或 peerDependencies —— pnpm 会把它装进 profile 并按包名遮住宿主自带的那份，宿主一升级就触发精确版本校验失败、tools 行被禁用（docs/references/dsh-plugin-upgrade-failure.md）。兼容性用 engines.dsh 声明。"
+}

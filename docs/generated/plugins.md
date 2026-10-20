@@ -10,6 +10,7 @@
 | 插件 | 包名 | 形态 | 状态 | 数据流向 | 目录 | 规格 |
 | --- | --- | --- | --- | --- | --- | --- |
 | dockyard | `@dsh-plugins/dockyard` | Host 插件 + UI 插件 | 实验性 | 仅本机 | `plugins/dockyard` | [规格](../product-specs/dockyard.md) |
+| browser-cdp | `@dsh-plugins/browser-cdp` | Host 插件 + UI 插件 | 实验性 | 仅本机 | `plugins/browser-cdp` | [规格](../product-specs/browser-cdp.md) |
 
 ## 共享包
 
@@ -22,6 +23,10 @@
 ### dockyard
 
 本机开发服务的可观测托管台：扫描项目、受监管地启停应用、tail 日志，并在 DSH 侧栏提供运行面板。
+
+### browser-cdp
+
+让智能体用 CDP 直接驱动一个受管 Chromium：自适应端口、独立 profile、结构化页面操作与截图，并随插件提供方法论技能。
 
 ---
 

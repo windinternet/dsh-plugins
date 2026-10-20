@@ -2,12 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "checkJs": true,
-    "types": ["node"],
-    "typeRoots": ["../../node_modules/@types", "../../types"],
-    "paths": {
-      "@deepseek-ai/schemastery": ["../../types/host-stubs/index.d.ts"],
-      "@deepseek-ai/dsh-tools": ["../../types/host-stubs/index.d.ts"]
-    }
+    "types": ["node"]
   },
   "include": ["index.js", "src/**/*.js", "test/**/*.mjs"]
 }

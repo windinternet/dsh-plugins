@@ -52,6 +52,10 @@ plugins/<id>/
 
 ## Host 半侧契约
 
+0. **插件不依赖任何宿主包。** 只依赖 Node 内置模块与自己包内的实现；
+   需要工具定义、配置校验这类能力时用 `src/internal/` 的同步副本。
+   宿主升级导致的启动事故复盘见
+   [`../references/dsh-plugin-upgrade-failure.md`](../references/dsh-plugin-upgrade-failure.md)。
 1. **`apply(ctx, config)` 是唯一入口。** 不做任何模块级副作用——模块加载不等于激活。
 2. **每个资源都有 disposer。** 用 `ctx.effect` 注册，返回清理函数；用 `ctx.on` 监听事件。
    插件卸载、会话销毁都会调用它们。资源泄漏在长跑的宿主进程里代价很高。

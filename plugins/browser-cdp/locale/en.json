@@ -1,0 +1,4 @@
+{
+  "title": "Browser automation (CDP)",
+  "description": "Let the agent drive a real Chromium over CDP: adaptive port, dedicated profile, structured page operations."
+}

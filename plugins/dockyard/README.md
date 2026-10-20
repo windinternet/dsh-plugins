@@ -22,15 +22,17 @@ kind: 'package-reference'
 
 ### 安装
 
-插件依赖 `@deepseek-ai/dsh-tools` 与 `@deepseek-ai/schemastery`（宿主同版本）。
-这两个包在公开 npm 上有发布，但**必须用 `file:` 或 registry spec 安装**：
+插件**没有任何依赖**，安装用 `file:` 或 registry spec：
 
 ```bash
 dsh plugin --profile desktop add "file:/绝对路径/dsh-plugins/plugins/dockyard"
 ```
 
 用 `link:` 会只建符号链接、不解析依赖树，插件启动时会以一行 `failed to import` 失败。
-这一点是实测结论，详见 [`docs/references/dsh-plugin-api.md`](../../docs/references/dsh-plugin-api.md)。
+
+**不要把 `@deepseek-ai/*` 宿主包写进依赖。** 那会把它装进 profile 并遮住宿主自带的版本；
+宿主一升级就触发精确版本校验失败，`tools` 行被禁用，整个启动挂掉。事故复盘见
+[`docs/references/dsh-plugin-upgrade-failure.md`](../../docs/references/dsh-plugin-upgrade-failure.md)。
 
 ### 数据目录
 
@@ -71,6 +73,9 @@ dsh plugin --profile desktop add "file:/绝对路径/dsh-plugins/plugins/dockyar
 不需要面板时可以设 `enablePanelRoute: false`。
 
 ## 配置
+
+配置写在 profile 的 `cordis.patch.yml` 里。插件刻意**不导出 schemastery 的 `Config`**，
+因此宿主的插件设置页不会为它渲染字段表单；非法值会回退默认值并记诊断，而不是阻止启动。
 
 | 字段                    | 默认值                                 | 含义                                         |
 | ----------------------- | -------------------------------------- | -------------------------------------------- |

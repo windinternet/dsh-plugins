@@ -11,6 +11,16 @@
       "status": "experimental",
       "dataFlow": "local-only",
       "specs": ["docs/product-specs/dockyard.md"]
+    },
+    {
+      "id": "browser-cdp",
+      "packageName": "@dsh-plugins/browser-cdp",
+      "dir": "plugins/browser-cdp",
+      "kind": "host+ui",
+      "summary": "让智能体用 CDP 直接驱动一个受管 Chromium：自适应端口、独立 profile、结构化页面操作与截图，并随插件提供方法论技能。",
+      "status": "experimental",
+      "dataFlow": "local-only",
+      "specs": ["docs/product-specs/browser-cdp.md"]
     }
   ],
   "sharedPackages": [

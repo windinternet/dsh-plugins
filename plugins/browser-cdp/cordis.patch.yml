@@ -1,0 +1,3 @@
+- insert:
+    - id: browser-cdp
+      name: '@dsh-plugins/browser-cdp'
