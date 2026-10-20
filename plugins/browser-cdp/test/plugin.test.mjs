@@ -233,7 +233,7 @@ test('apply：面板路由只在有 webServer 时注册，且拒绝非本机来�
   assert.equal(payload.ok, true);
   // 未启动时状态如实报告，不谎报运行中
   assert.equal(payload.running, false);
-  assert.equal(payload.status, '未启动');
+  assert.match(payload.status, /浏览器未启动/);
   // 不能把可执行路径之类的本机细节漏给任何请求方
   assert.equal(payload.executablePath, null);
   assert.equal(allowed.headers['cache-control'], 'no-store');

@@ -23,7 +23,7 @@ window.__ModuleLoader__.load({
     /** 状态到中文标签的映射。未知状态如实显示"未知"，不猜。 */
     const STATE_LABEL = {
       running: '运行中',
-      stopped: '未启动',
+      stopped: '浏览器未启动',
       exited: '已退出',
       unknown: '未知',
       unavailable: '状态不可用',

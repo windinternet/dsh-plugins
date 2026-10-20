@@ -192,7 +192,7 @@ export class ManagedBrowser {
     if (this.running) return `运行中 · 端口 ${this.port} · ${this.openTabs.size} 个标签`;
     if (this.process !== null && !this.process.alive)
       return `已退出（${this.process.processState}）`;
-    return '未启动';
+    return '浏览器未启动（首次调用工具时自动启动）';
   }
 
   /**
