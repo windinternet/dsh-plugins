@@ -5031,6 +5031,7 @@ window.__ModuleLoader__.load({
         onSync,
         onTakeoverAll,
         onTakeoverProject,
+        onTakeoverApp,
         externalUnmatched,
         externalError,
       } = props;
@@ -5233,6 +5234,17 @@ window.__ModuleLoader__.load({
                     'button',
                     {
                       type: 'button',
+                      className: 'dy-btn dy-btn-primary',
+                      disabled: busy !== '',
+                      title: t('externalAppsHint'),
+                      onClick: () => onTakeoverApp(app.id),
+                    },
+                    t('takeoverApp'),
+                  ),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
                       className: 'dy-btn',
                       disabled: busy !== '',
                       onClick: () => act('stop', { id: app.id }, `stop:${app.id}`),
@@ -5243,7 +5255,7 @@ window.__ModuleLoader__.load({
                     'button',
                     {
                       type: 'button',
-                      className: 'dy-btn dy-btn-primary',
+                      className: 'dy-btn',
                       disabled: busy !== '',
                       title: t('externalRestartHint'),
                       onClick: () => act('restart', { id: app.id }, `restart:${app.id}`),
@@ -6785,6 +6797,7 @@ window.__ModuleLoader__.load({
           onTakeoverAll: () => act('takeover-all', {}, 'takeover-all'),
           onTakeoverProject: (projectId) =>
             act('takeover-project', { projectId }, `takeover-project:${projectId}`),
+          onTakeoverApp: (id) => act('takeover-app', { id }, `takeover:${id}`),
           externalUnmatched: status.externalUnmatched,
           externalError: status.externalError,
           onLogs: openLogModal,
