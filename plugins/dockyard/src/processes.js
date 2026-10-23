@@ -120,6 +120,36 @@ export function parsePsGroups(text) {
 }
 
 /**
+ * 查看一个进程的进程组与命令行，用于宿主重启后的托管重认领。
+ * @param {number} pid
+ * @param {{ platform?: NodeJS.Platform }} [options]
+ * @returns {Promise<{ alive: boolean, pgid?: number, command?: string, error?: string }>}
+ */
+export async function inspectProcess(pid, options = {}) {
+  if (!Number.isInteger(pid) || pid <= 1) return { alive: false };
+  const platform = options.platform ?? process.platform;
+  if (platform !== 'darwin' && platform !== 'linux') {
+    return { alive: false, error: `当前平台 ${platform} 暂不支持进程检查。` };
+  }
+  const psCommand = platform === 'darwin' ? '/bin/ps' : 'ps';
+  try {
+    const result = await execFileAsync(psCommand, ['-p', String(pid), '-o', 'pgid=,command='], {
+      timeout: 3000,
+      maxBuffer: 1024 * 1024,
+      encoding: 'utf8',
+    });
+    const line = String(result.stdout).trim();
+    if (line === '') return { alive: false };
+    const match = line.match(/^(\d+)\s+(.*)$/);
+    if (!match) return { alive: false, error: '无法解析进程信息。' };
+    return { alive: true, pgid: Number(match[1]), command: match[2] ?? '' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { alive: false, error: `无法检查进程 ${pid}：${message}` };
+  }
+}
+
+/**
  * 按进程组汇总监听端口。dockyard 启动的应用在独立进程组里，启动器 pid 就是组 id，
  * 因此可以用一个应用一条记录的方式拿到它整棵树的端口。
  * @param {{ platform?: NodeJS.Platform }} [options]

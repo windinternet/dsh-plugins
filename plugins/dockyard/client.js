@@ -3347,7 +3347,20 @@ window.__ModuleLoader__.load({
      * @returns {any}
      */
     function buildOverviewModel(status) {
-      const apps = Array.isArray(status.applications) ? status.applications : [];
+      const managedApps = Array.isArray(status.applications) ? status.applications : [];
+      const externalApps = Array.isArray(status.externalApps) ? status.externalApps : [];
+      /** 概览的运行统计必须包含非托管应用；否则外部启动的服务在概览里等于不存在。 */
+      const byId = new Map(managedApps.map((app) => [app.id, app]));
+      for (const external of externalApps) {
+        if (!external || typeof external.id !== 'string') continue;
+        const existing = byId.get(external.id);
+        if (!existing) {
+          byId.set(external.id, { ...external, status: 'running', managed: false });
+        } else if (existing.status !== 'running' && external.status === 'running') {
+          byId.set(external.id, { ...external, status: 'running', managed: false });
+        }
+      }
+      const apps = [...byId.values()];
       const running = apps.filter((app) => app.status === 'running');
       const crashed = apps.filter((app) => app.status === 'crashed');
       const stopped = apps.filter((app) => app.status === 'stopped');
@@ -3368,11 +3381,13 @@ window.__ModuleLoader__.load({
         .sort((a, b) => severity(a) - severity(b) || String(a.name).localeCompare(String(b.name)));
       const totalCpu = running.reduce((sum, app) => sum + (Number(app.cpuPercent) || 0), 0);
       const totalRss = running.reduce((sum, app) => sum + (Number(app.rssBytes) || 0), 0);
-      const avgUptime = running.length
-        ? running.reduce((sum, app) => sum + (Number(app.uptimeMs) || 0), 0) / running.length
+      const runningWithUptime = running.filter((app) => Number.isFinite(app.uptimeMs));
+      const avgUptime = runningWithUptime.length
+        ? runningWithUptime.reduce((sum, app) => sum + Number(app.uptimeMs), 0) /
+          runningWithUptime.length
         : 0;
-      const longest = [...running].sort(
-        (a, b) => (Number(b.uptimeMs) || 0) - (Number(a.uptimeMs) || 0),
+      const longest = [...runningWithUptime].sort(
+        (a, b) => Number(b.uptimeMs) - Number(a.uptimeMs),
       )[0];
       const languageStats = groupOverviewApps(apps, 'language');
       const managerStats = groupOverviewApps(apps, 'manager');
@@ -3384,21 +3399,28 @@ window.__ModuleLoader__.load({
         Array.isArray(status.projects) && status.projects.length > 0
           ? status.projects
           : aggregateOverviewProjects(apps);
-      const projects = sourceProjects.map((project) => {
+      const projectMap = new Map(sourceProjects.map((project) => [project.id, project]));
+      for (const app of apps) {
+        const key = app.projectId ?? 'unclassified';
+        if (!projectMap.has(key)) {
+          projectMap.set(key, {
+            id: key,
+            name: app.projectName ?? '',
+            root: app.projectRoot ?? '',
+          });
+        }
+      }
+      const projects = [...projectMap.values()].map((project) => {
         const projectApps = apps.filter((app) => (app.projectId ?? 'unclassified') === project.id);
         const projectRunning = projectApps.filter((app) => app.status === 'running');
         return {
           id: project.id,
           name: project.name || '',
           root: project.root || '',
-          apps: Number.isFinite(project.apps) ? project.apps : projectApps.length,
-          running: Number.isFinite(project.running) ? project.running : projectRunning.length,
-          cpuPercent: Number.isFinite(project.cpuPercent)
-            ? project.cpuPercent
-            : projectRunning.reduce((sum, app) => sum + (Number(app.cpuPercent) || 0), 0),
-          rssBytes: Number.isFinite(project.rssBytes)
-            ? project.rssBytes
-            : projectRunning.reduce((sum, app) => sum + (Number(app.rssBytes) || 0), 0),
+          apps: projectApps.length,
+          running: projectRunning.length,
+          cpuPercent: projectRunning.reduce((sum, app) => sum + (Number(app.cpuPercent) || 0), 0),
+          rssBytes: projectRunning.reduce((sum, app) => sum + (Number(app.rssBytes) || 0), 0),
           languages: [...new Set(projectApps.map((app) => app.language).filter((item) => item))],
           managers: [
             ...new Set(

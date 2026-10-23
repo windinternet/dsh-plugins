@@ -5,10 +5,9 @@
  *
  * - **存**元数据：应用清单、启动参数、最近一次状态与原因、日志文件路径。
  *   这些是"发生过什么"的记录，重启宿主后仍应可读。
- * - **不存**进程句柄，也**不假装知道**重启前的进程是否还活着。
- *   宿主进程重启后，之前托管的进程要么已经随之退出，要么成了孤儿；
- *   两者都无法可靠判断。所以加载时一律把状态标为 `unknown`，
- *   由用户显式确认或重新启动，而不是谎报"正在运行"。
+ * - **不存**进程句柄，但**存启动器 pid**。宿主重启后，service.init() 会检查该 pid
+ *   是否仍是本插件的启动器（命令行含 app-launcher.mjs 且进程组号等于 pid）：
+ *   是则重新接管，不是或已退出则如实标为 unknown/crashed。绝不自动启动。
  *
  * 用一个 JSON 文件而不是数据库：这里的写入量很小（每次状态变化一次），
  * 原子替换即可保证一致性，引入 SQLite 只会多一份需要维护的依赖。
@@ -442,25 +441,34 @@ export class StateStore {
     }
 
     const { state, problems } = parseState(raw);
-    // 宿主重启后无法确认任何进程的死活：一律降级为 unknown，绝不谎报 running。
+    // 宿主重启后不能直接相信 running，但也不能丢掉 pid：
+    // - 有 pid 的记录保留运行态，交给 service.init() 校验启动器是否还活着并重新接管；
+    // - 没有 pid 的旧记录才降级为 unknown。
+    // 这样既不会谎报，也不会把真正还在运行的托管应用误判成非托管。
     for (const record of Object.values(state.applications)) {
       if (
         record.status === 'running' ||
         record.status === 'starting' ||
         record.status === 'stopping'
       ) {
-        record.status = 'unknown';
-        record.statusReason =
-          '宿主进程已重启，无法确认该进程是否仍在运行，请重新启动或标记为已停止。';
-        record.pid = undefined;
-      }
-      if (record.guard?.active) {
-        record.guard = {
-          ...record.guard,
-          active: false,
-          nextAttemptAt: undefined,
-          reason: '宿主重启，守护已暂停；重新手动启动后恢复。',
-        };
+        const pid = record.pid;
+        if (typeof pid === 'number' && Number.isInteger(pid) && pid > 1) {
+          record.status = 'running';
+          record.statusReason = '宿主进程已重启，正在确认并重新接管该进程…';
+        } else {
+          record.status = 'unknown';
+          record.statusReason =
+            '宿主进程已重启，且没有可用的进程号，无法确认该进程是否仍在运行，请重新启动或标记为已停止。';
+          record.pid = undefined;
+          if (record.guard?.active) {
+            record.guard = {
+              ...record.guard,
+              active: false,
+              nextAttemptAt: undefined,
+              reason: '宿主重启且没有可用 pid，守护已暂停。',
+            };
+          }
+        }
       }
     }
     this.state = state;

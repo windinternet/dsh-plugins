@@ -18,12 +18,13 @@ import { parseState, emptyState, STATE_VERSION, StateStore } from '../src/store.
  * @param {any[]} candidates 假扫描会返回的候选
  * @param {(message: string) => void} [onWarn]
  */
-function makeService(dir, candidates, onWarn) {
+function makeService(dir, candidates, onWarn, extra = {}) {
   return new DockyardService({
     dataDir: dir,
     onWarn,
     metricsIntervalMs: 0,
     syncIntervalMs: 0,
+    ...extra,
     scanImpl: async () => ({
       projects: [
         {
@@ -347,7 +348,7 @@ test('重启会保留启动参数并给出新的进程号', async () => {
   }
 });
 
-test('宿主重启后加载状态：running 被降级为 unknown，绝不谎报', async () => {
+test('宿主重启后重新接管仍在运行的托管应用', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dockyard-reload-'));
   try {
     const script = join(dir, 'child.mjs');
@@ -363,24 +364,31 @@ test('宿主重启后加载状态：running 被降级为 unknown，绝不谎报'
       args: [script],
       reason: '测试夹具',
     });
-    await first.start('persist');
+    const started = await first.start('persist');
     assert.equal(pick(await first.list(), 'persist').status, 'running');
 
-    // 不让它真的杀进程，避免留下孤儿；只验证"重新加载后的解释"
     /** @type {string[]} */
     const warnings = [];
-    const second = makeService(dir, [], (m) => warnings.push(m));
+    const second = makeService(dir, [], (m) => warnings.push(m), {
+      processInspector: async (/** @type {number} */ pid) => ({
+        alive: true,
+        pgid: pid,
+        command: 'node /tmp/app-launcher.mjs',
+      }),
+    });
     await second.init();
     const reloaded = await second.list();
     assert.equal(reloaded.length, 1);
     const reloadedRecord = pick(reloaded, 'persist');
-    assert.equal(reloadedRecord.status, 'unknown');
-    assert.match(reloadedRecord.statusReason, /宿主进程已重启/);
-    assert.equal(reloadedRecord.pid, undefined);
+    assert.equal(reloadedRecord.status, 'running');
+    assert.equal(reloadedRecord.pid, started.pid);
+    assert.match(reloadedRecord.statusReason, /重新接管/);
     assert.deepEqual(warnings, []);
 
-    // 收拾干净：用第一个实例停掉它
-    await first.stop('persist');
+    // 第二个实例能接管并停止原进程
+    const stopped = await second.stop('persist');
+    assert.equal(stopped.stopped, true);
+    assert.equal(pick(await second.list(), 'persist').status, 'stopped');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -429,7 +437,7 @@ test('状态文件损坏时给出诊断并重置，而不是让插件崩掉', as
   }
 });
 
-test('shutdown：默认不杀进程，但把状态如实标为 unknown', async () => {
+test('shutdown：默认不杀进程，保留运行态和 pid 供下次接管', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dockyard-shutdown-'));
   try {
     const script = join(dir, 'child.mjs');
@@ -453,8 +461,10 @@ test('shutdown：默认不杀进程，但把状态如实标为 unknown', async (
     assert.equal(result.leftRunning, 1);
 
     const state = JSON.parse(await readFile(join(dir, 'state.json'), 'utf8'));
-    assert.equal(state.applications.kept.status, 'unknown');
-    assert.match(state.applications.kept.statusReason, /插件已卸载/);
+    assert.equal(state.applications.kept.status, 'running');
+    assert.equal(state.applications.kept.pid, startedPid(started));
+    assert.match(state.applications.kept.statusReason, /下次启动时重新接管/);
+    assert.equal(state.applications.kept.guard?.active, true);
 
     // 自己收拾：直接杀进程，避免留下孤儿
     const keptPid = startedPid(started);

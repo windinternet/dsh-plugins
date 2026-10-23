@@ -23,6 +23,7 @@ import { readTail } from './internal/log-buffer.js';
 import { StateStore, defaultGuardPolicy } from './store.js';
 import { sampleProcessGroup } from './metrics.js';
 import {
+  inspectProcess,
   listExternalProcesses,
   listListeningPorts,
   terminateExternalProcess,
@@ -70,6 +71,7 @@ export class DockyardService {
    *   可替换的采样实现，便于测试。
    * @param {typeof listExternalProcesses} [options.processLister] 可替换的外部进程枚举实现。
    * @param {typeof listListeningPorts} [options.portLister] 可替换的监听端口枚举实现。
+   * @param {typeof inspectProcess} [options.processInspector] 可替换的进程检查实现。
    * @param {typeof terminateExternalProcess} [options.terminateImpl] 可替换的进程终止实现。
    * @param {number} [options.syncIntervalMs] 周期同步间隔；0 表示关闭（测试用）。
    * @param {boolean} [options.syncOnStart] 启动后是否立即做一次同步。
@@ -82,6 +84,7 @@ export class DockyardService {
     sampleProcessImpl = sampleProcessGroup,
     processLister = listExternalProcesses,
     portLister = listListeningPorts,
+    processInspector = inspectProcess,
     terminateImpl = terminateExternalProcess,
     syncIntervalMs = 5 * 60 * 1000,
     syncOnStart = true,
@@ -94,6 +97,7 @@ export class DockyardService {
     this.sampleProcessImpl = sampleProcessImpl;
     this.processLister = processLister;
     this.portLister = portLister;
+    this.processInspector = processInspector;
     this.terminateImpl = terminateImpl;
     this.syncIntervalMs = syncIntervalMs;
     this.syncOnStart = syncOnStart;
@@ -146,8 +150,83 @@ export class DockyardService {
     for (const problem of problems) this.onWarn(problem);
     await mkdir(this.logDir, { recursive: true });
     await mkdir(this.metricsDir, { recursive: true });
+    await this.#reattachManagedProcesses();
     this.#startMetrics();
     this.#startSync();
+  }
+
+  /**
+   * 宿主重启后，根据状态里的 pid 重新认领仍在运行的启动器。
+   *
+   * 只认命令行里带 app-launcher.mjs 且进程组号等于 pid 的进程：
+   * 这样既能把仍活着的托管应用接回来，也不会把 pid 复用后的陌生进程误认成自己的。
+   * 认领失败（进程已退出/不是启动器）时如实降级为 crashed/unknown，绝不自动启动。
+   * @returns {Promise<number>} 重新接管的数量
+   */
+  async #reattachManagedProcesses() {
+    let changed = false;
+    let reattached = 0;
+    for (const record of this.store.list()) {
+      if (
+        record.status !== 'running' &&
+        record.status !== 'starting' &&
+        record.status !== 'stopping'
+      ) {
+        continue;
+      }
+      const pid = record.pid;
+      if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 1) continue;
+      const info = await this.processInspector(pid);
+      if (!info.alive) {
+        record.status = 'crashed';
+        record.statusReason = '宿主重启后发现进程已退出，未自动启动。';
+        record.pid = undefined;
+        record.stoppedAt = Date.now();
+        if (record.guard?.active) {
+          this.#deactivateGuard(record, '宿主重启后发现进程已退出，守护暂停，未自动启动。');
+        }
+        changed = true;
+        continue;
+      }
+      const isLauncher =
+        typeof info.command === 'string' &&
+        info.command.includes('app-launcher.mjs') &&
+        info.pgid === pid;
+      if (!isLauncher) {
+        record.status = 'unknown';
+        record.statusReason = '进程仍存在，但不是本插件的启动器，未重新接管。';
+        record.pid = undefined;
+        if (record.guard?.active) {
+          this.#deactivateGuard(record, '未能确认原启动器，守护暂停，未自动启动。');
+        }
+        changed = true;
+        continue;
+      }
+
+      /** @type {any} */
+      const handle = {
+        id: record.id,
+        pid,
+        status: 'running',
+        command: record.command,
+        args: record.args,
+        cwd: record.dir,
+        startedAt: record.startedAt ?? Date.now(),
+        ownsProcessGroup: true,
+      };
+      this.processes.set(record.id, handle);
+      record.status = 'running';
+      record.statusReason = `宿主重启后已重新接管（pid ${pid}）。`;
+      if (record.guard?.active) {
+        record.guard.nextAttemptAt = undefined;
+        record.guard.reason = '宿主重启后已重新接管，守护继续。';
+      }
+      reattached += 1;
+      changed = true;
+      await this.#appendSystemLog(record.logFile, record.statusReason);
+    }
+    if (changed) await this.store.save();
+    return reattached;
   }
 
   /** 启动周期同步。只同步已托管项目；定时器 unref，不阻止进程退出。 */
@@ -1521,7 +1600,7 @@ export class DockyardService {
    * 插件卸载时的收尾。
    *
    * 默认**不**杀死被托管的进程：dockyard 的价值之一就是进程不随客户端消失。
-   * 但必须把这一点记进日志并把状态标为 unknown，否则下次读到"运行中"就是谎言。
+   * 记录保留 running + 启动器 pid，下次 init() 通过 pid 重新认领。
    *
    * @param {{ killProcesses?: boolean }} [options]
    * @returns {Promise<{ killed: number, leftRunning: number }>}
@@ -1530,8 +1609,9 @@ export class DockyardService {
     this.#stopMetrics();
     this.#stopSync();
     for (const record of this.store.list()) {
-      if (record.guard?.active) {
-        this.#deactivateGuard(record, '宿主关闭，守护已暂停；重新打开宿主后需手动启动才能恢复。');
+      // 没有对应进程的守护没有继续意义；仍在运行的守护保留，下次启动时接回来。
+      if (record.guard?.active && !this.processes.has(record.id)) {
+        this.#deactivateGuard(record, '宿主关闭时应用未运行，守护已暂停。');
       } else {
         this.#clearGuardTimer(record.id);
       }
@@ -1544,6 +1624,7 @@ export class DockyardService {
         if (result.stopped) killed += 1;
         const record = this.store.get(id);
         if (record) {
+          this.#deactivateGuard(record, '插件卸载时按要求停止了进程，守护已关闭。');
           record.status = 'stopped';
           record.statusReason = '插件卸载时按要求停止了进程。';
           record.stoppedAt = Date.now();
@@ -1556,12 +1637,17 @@ export class DockyardService {
     }
 
     const leftRunning = this.processes.size;
-    for (const id of this.processes.keys()) {
+    for (const [id, handle] of this.processes) {
       const record = this.store.get(id);
       if (!record) continue;
-      record.status = 'unknown';
-      record.statusReason = '插件已卸载，本插件不再持有该进程的句柄，无法确认其是否仍在运行。';
-      record.pid = undefined;
+      // 进程不随插件退出；保留 running + pid，下次 init() 通过 pid 重新认领。
+      record.status = 'running';
+      record.statusReason = '宿主已关闭，进程仍在运行；下次启动时重新接管。';
+      record.pid = handle.pid;
+      if (record.guard?.active) {
+        record.guard.nextAttemptAt = undefined;
+        record.guard.reason = '宿主已关闭，进程继续运行；下次启动时重新接管，守护继续。';
+      }
     }
     this.processes.clear();
     await this.store.save();
