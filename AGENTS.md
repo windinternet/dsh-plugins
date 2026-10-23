@@ -57,6 +57,14 @@ pnpm check
 它依次执行：格式检查 → ESLint → 类型检查 → 清单校验 → 文档校验 → 密钥扫描 → 测试。
 任何一项失败都不要提交。单项也可单独运行，见 [`package.json`](package.json) 的 scripts。
 
+### 交付纪律
+
+- **通过验证就提交并推送。** 改动跑通 `pnpm check` 后，必须在同一轮工作内
+  `git add`、`git commit` 并推送到 `origin/main`，不要留在工作区等下次。
+- 提交前确认没有个人路径、令牌、本机运行时数据或生成物；`.dsh-computer-use/`、`.idea/`
+  这类本机目录不提交。
+- 推送失败就明确报告阻塞原因，不能把“本地已提交”说成“已推送”。
+
 ## 文档路由
 
 | 需要了解什么               | 唯一事实源                                                                           | 何时更新               |
@@ -64,6 +72,7 @@ pnpm check
 | 目录布局、依赖方向、包边界 | [`ARCHITECTURE.md`](ARCHITECTURE.md)                                                 | 新增包或改变边界时     |
 | 核心理念与工程取舍         | [`docs/design-docs/core-beliefs.md`](docs/design-docs/core-beliefs.md)               | 原则本身变化时         |
 | 插件机制如何运作           | [`docs/design-docs/plugin-architecture.md`](docs/design-docs/plugin-architecture.md) | Host/Client 契约变化时 |
+| 项目扫描/归一化规则        | [`docs/design-docs/project-scanning.md`](docs/design-docs/project-scanning.md)       | 判定规则变化时         |
 | DSH 插件 API 事实          | [`docs/references/dsh-plugin-api.md`](docs/references/dsh-plugin-api.md)             | 宿主版本升级时         |
 | 某个插件要做什么、验收标准 | [`docs/product-specs/`](docs/product-specs/)                                         | 用户可感知的承诺变化时 |
 | 正在做的工作               | [`docs/exec-plans/active/`](docs/exec-plans/active/)                                 | 跨多个提交的任务       |

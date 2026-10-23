@@ -2,12 +2,13 @@
 
 本文件记录编写插件所需的宿主事实。**它从本机安装的 DSH 中提取，不是二手转述。**
 
-| 项       | 值                                                                                                    |
-| -------- | ----------------------------------------------------------------------------------------------------- |
-| 提取时间 | 2026-10-10                                                                                            |
-| 宿主包   | `@deepseek-ai/dsh@0.2.0-rc.2`                                                                         |
-| 来源     | `/Applications/DeepSeek Harness.app/Contents/Resources/app.asar` 内的官方技能与包文档                 |
-| 原始材料 | `@deepseek-ai/dsh-agent-preset` 的 `cordis-plugin-development` 与 `cordis-composition-reference` 技能 |
+| 项       | 值                                                                                                              |
+| -------- | --------------------------------------------------------------------------------------------------------------- |
+| 提取时间 | 2026-10-10；2026-10-21 在 0.2.1-rc.2 上复核槽位与 Client 侧事实并补充                                           |
+| 宿主包   | `@deepseek-ai/dsh@0.2.1-rc.2`                                                                                   |
+| 来源     | `/Applications/DeepSeek Harness.app/Contents/Resources/app.asar` 内的官方技能与包文档                           |
+| 原始材料 | `@deepseek-ai/dsh-agent-preset` 的 `cordis-plugin-development` 与 `cordis-composition-reference` 技能           |
+| 复核材料 | `dsh-client-ui-plugin-manager` 的 `lib/client.js`、`dsh-client-ui-sidebar` 的 README 与实现、`dsh-desktop-host` |
 
 升级 DSH 后本文件可能过期。重新核对的步骤见文末。
 
@@ -88,8 +89,8 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       apply(ctx) {
-        ctx.slots.inject('conversation.composer.dock', () =>
-          ctx.slots.register({ name: 'conversation.composer.dock', id: 'example', order: 5 }, () =>
+        ctx.slots.inject('conversation.input.dock', () =>
+          ctx.slots.register({ name: 'conversation.input.dock', id: 'example', order: 5 }, () =>
             React.createElement('div', null, 'hello'),
           ),
         );
@@ -115,26 +116,60 @@ window.__ModuleLoader__.load({
 
 从宿主客户端产物中提取（出现次数为该名字在宿主代码中的引用次数，可作稳定性参考）：
 
-| 槽位                                  | 用途                                                  |
-| ------------------------------------- | ----------------------------------------------------- |
-| `sidebar.right.pane.tab`              | 右侧栏标签页（宿主页面级入口常用）                    |
-| `sidebar.right.pane.tab.title`        | 上者的标题                                            |
-| `sidebar.right.tab.guide.entry`       | 右侧栏引导条目                                        |
-| `sidebar.footer.action`               | 侧栏底部操作区                                        |
-| `settings.general.item`               | 设置「通用」分区条目                                  |
-| `settings.plugins.tab`                | 设置「插件」分区标签页                                |
-| `plugins.item`                        | 插件管理页的官方插件分组条目                          |
-| `plugins.bundle.config`               | 插件管理页某个 bundle 的配置区（以包名为 key）        |
-| `plugins.row.config`                  | 插件管理页某一行的配置区（key 形如 `<包名>#<行 id>`） |
-| `conversation.composer.dock`          | 输入框下方停靠区（官方模板默认选它）                  |
-| `conversation.composer.bar`           | 输入框工具条                                          |
-| `conversation.session.header.actions` | 会话头部操作区                                        |
-| `conversation.chat.node`              | 会话流中的一个节点（按事件定义的 kind 渲染）          |
-| `tool.call.toolview`                  | 工具调用的自定义视图                                  |
-| `sidebar.right.tab.document`          | 右侧栏文档预览页                                      |
+| 槽位                                  | 用途                                                                          |
+| ------------------------------------- | ----------------------------------------------------------------------------- |
+| `sidebar.panellist`                   | 左侧栏全局面板入口（root list；`id` 与 `main` 的 key 相同）                   |
+| `main`                                | root 作用域的 keyed 全局页；`conversation` 键保留给会话界面                   |
+| `sidebar.right.pane.tab`              | 右侧栏标签页（宿主页面级入口常用）                                            |
+| `sidebar.right.pane.tab.title`        | 上者的标题                                                                    |
+| `sidebar.right.tab.guide.entry`       | 右侧栏引导条目                                                                |
+| `sidebar.footer.action`               | 侧栏底部操作区                                                                |
+| `settings.general.item`               | 设置「通用」分区条目                                                          |
+| `settings.plugins.tab`                | 设置「插件」分区标签页                                                        |
+| `plugins.item`                        | 插件管理页的官方插件分组条目                                                  |
+| `plugins.bundle.config`               | 插件管理页某个 bundle 的配置区（以包名为 key）                                |
+| `plugins.row.config`                  | 插件管理页某一行的配置区（key 形如 `<包名>#<行 id>`）                         |
+| `conversation.input.dock`             | 输入框上方停靠区（session 作用域；官方 queue/todo 与状态条用它）              |
+| `conversation.composer.dock`          | 输入条内部停靠区（session 作用域；只在 composer 变体且有 session 输入时渲染） |
+| `conversation.composer.bar`           | 输入框工具条                                                                  |
+| `conversation.session.header.actions` | 会话头部操作区                                                                |
+| `conversation.chat.node`              | 会话流中的一个节点（按事件定义的 kind 渲染）                                  |
+| `tool.call.toolview`                  | 工具调用的自定义视图                                                          |
+| `sidebar.right.tab.document`          | 右侧栏文档预览页                                                              |
 
 宿主自己的管理页（`dsh-client-ui-plugin-manager`）就是通过 `ctx.slots.inject()` 注册
 `plugins` 侧栏入口与它的 `main` 面板实现的。新插件应模仿这个模式。
+
+两个 dock 槽位都存在，但渲染条件不同：`conversation.composer.dock` 位于输入条内部，
+只在 composer 变体且已有 session 输入时出现；`conversation.input.dock` 位于输入框上方，
+只要会话区域在就渲染。要做“一直可见的状态条”，选后者。
+
+### 加一个“左侧栏入口 + 整页”
+
+这是两个槽位配合，不是一个专门的菜单/路由 API：
+
+```js
+// 入口：root list。组件是图标，拿到 { size, active }；行与文案由侧栏渲染。
+ctx.slots.inject('sidebar.panellist', () =>
+  ctx.slots.register(
+    { name: 'sidebar.panellist', id: 'example', order: 10, label: () => t('panel'), locale: NS },
+    ExampleIcon,
+  ),
+);
+
+// 页面：root keyed。key 必须等于入口 id，否则点击入口会找不到页面。
+ctx.slots.inject('main', () =>
+  ctx.slots.register({ name: 'main', key: 'example', locale: NS }, ExamplePage),
+);
+```
+
+桌面端与 Web 端是同一套 Client：桌面版只是 Electron 外壳加载同一个 web 界面，
+因此这两个槽位在两端行为一致。**原生菜单栏**（macOS 顶部应用菜单、Windows 的
+Desktop 菜单）由桌面主进程写死，插件加不了；能加的是应用内导航入口。
+
+`dsh.client.inject` 里写 `@deepseek-ai/dsh-client-ui-sidebar` 与
+`@deepseek-ai/dsh-client-ui-layout` 只用于激活排序，不会把宿主包装进 profile——
+它不是 import，也不是依赖声明。
 
 ## 依赖解析：外部插件最大的坑（2026-10-20 修订）
 

@@ -1,13 +1,6 @@
 {
   "meta": {
     "title": "dockyard 本机服务托管",
-    "description": "扫描本机项目、受监管地启停开发服务、读取日志，并在输入框下方显示运行状态。"
-  },
-  "loading": "加载中",
-  "runningSuffix": "运行中",
-  "crashedSuffix": "异常",
-  "toggleHint": "展开或收起本机服务列表",
-  "unavailable": "状态不可用",
-  "unavailableHint": "宿主可能未启用 HTTP 服务",
-  "empty": "还没有托管任何应用。可以让 agent 用 dockyard_scan 扫描项目。"
+    "description": "扫描本机项目、受监管地启停开发服务、读取日志，并在 DSH 左侧栏提供多标签管理页。"
+  }
 }

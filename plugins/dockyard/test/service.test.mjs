@@ -22,7 +22,32 @@ function makeService(dir, candidates, onWarn) {
   return new DockyardService({
     dataDir: dir,
     onWarn,
-    scanImpl: async () => ({ apps: candidates, diagnostics: [], scannedDirs: candidates.length }),
+    metricsIntervalMs: 0,
+    syncIntervalMs: 0,
+    autoTakeover: false,
+    scanImpl: async () => ({
+      projects: [
+        {
+          id: 'project:/p',
+          name: 'p',
+          root: '/p',
+          source: 'manifest',
+          container: null,
+          ecosystems: [
+            {
+              id: 'node-npm',
+              name: 'Node.js (npm)',
+              language: 'Node.js',
+              manager: 'npm',
+              apps: candidates,
+            },
+          ],
+          diagnostics: [],
+        },
+      ],
+      diagnostics: [],
+      scannedDirs: candidates.length,
+    }),
   });
 }
 
@@ -391,8 +416,11 @@ test('shutdown：默认不杀进程，但把状态如实标为 unknown', async (
         /* 已退出 */
       }
     }
+    // 等被杀进程的日志写盘结束，再删目录；否则 rm 会偶发 ENOTEMPTY。
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await service.flushLogs();
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 });
 
@@ -446,15 +474,21 @@ test('scan 会记住扫描根目录，并在候选上标记是否已托管', asy
     await service.init();
 
     const first = await service.scan(['/p']);
-    assert.equal(first.candidates.length, 1);
-    const firstCandidate = first.candidates[0];
+    const firstApps = first.projects.flatMap((project) =>
+      project.ecosystems.flatMap((group) => group.apps),
+    );
+    assert.equal(firstApps.length, 1);
+    const firstCandidate = firstApps[0];
     assert.ok(firstCandidate, '应扫描出候选');
     assert.equal(firstCandidate.alreadyAdded, false);
     assert.deepEqual(service.store.state.scanRoots, ['/p']);
 
     await service.add(/** @type {any} */ (firstCandidate));
     const second = await service.scan(['/p']);
-    assert.equal(second.candidates[0]?.alreadyAdded, true);
+    const secondApps = second.projects.flatMap((project) =>
+      project.ecosystems.flatMap((group) => group.apps),
+    );
+    assert.equal(secondApps[0]?.alreadyAdded, true);
     // 重复扫描同一根目录不会重复记录
     assert.deepEqual(service.store.state.scanRoots, ['/p']);
   } finally {
@@ -472,5 +506,418 @@ test('停止不存在的应用与启动不存在的应用都给出可读原因',
     assert.match((await service.remove('nope')).reason, /没有 id 为 nope 的应用/);
   } finally {
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('addFromScan：重新扫描后只加入指定候选，找不到候选时给出原因', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-add-scan-'));
+  try {
+    const candidates = [
+      {
+        id: 'node:/p:dev',
+        name: 'demo',
+        dir: '/p',
+        runner: 'node',
+        command: 'node',
+        scriptName: 'dev',
+        args: ['server.js'],
+        reason: 'package.json 的 scripts["dev"]',
+      },
+      {
+        id: 'node:/q:start',
+        name: 'other',
+        dir: '/q',
+        runner: 'node',
+        command: 'node',
+        scriptName: 'start',
+        args: ['index.js'],
+        reason: 'package.json 的 scripts["start"]',
+      },
+    ];
+    const service = makeService(dir, candidates);
+    await service.init();
+
+    const added = await service.addFromScan('node:/p:dev', ['/p']);
+    assert.equal(added.added, true, added.reason);
+    assert.equal((await service.list()).length, 1);
+
+    const missing = await service.addFromScan('node:/nope:x', ['/p']);
+    assert.equal(missing.added, false);
+    assert.match(missing.reason, /没有找到 id 为 node:\/nope:x 的候选应用/);
+
+    // 已托管的候选再次加入会被拒绝，而不是产生重复条目。
+    const duplicate = await service.addFromScan('node:/p:dev', ['/p']);
+    assert.equal(duplicate.added, false);
+    assert.match(duplicate.reason, /已在管理列表中/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('项目级托管：一次加入项目下全部应用，重复加入被跳过，可整项目移除', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-project-'));
+  try {
+    const project = {
+      id: 'project:/p',
+      name: 'p',
+      root: '/p',
+      source: 'git',
+      container: null,
+      ecosystems: [
+        {
+          id: 'node-npm',
+          name: 'Node.js (npm)',
+          language: 'Node.js',
+          manager: 'npm',
+          apps: [
+            {
+              id: 'node:/p/a:dev',
+              name: 'a',
+              dir: '/p/a',
+              runner: 'node',
+              command: 'npm',
+              args: ['run', 'dev'],
+              reason: 'a',
+              projectId: 'project:/p',
+              projectName: 'p',
+              projectRoot: '/p',
+              ecosystemId: 'node-npm',
+              ecosystemName: 'Node.js (npm)',
+              language: 'Node.js',
+              manager: 'npm',
+            },
+            {
+              id: 'node:/p/b:dev',
+              name: 'b',
+              dir: '/p/b',
+              runner: 'node',
+              command: 'npm',
+              args: ['run', 'dev'],
+              reason: 'b',
+              projectId: 'project:/p',
+              projectName: 'p',
+              projectRoot: '/p',
+              ecosystemId: 'node-npm',
+              ecosystemName: 'Node.js (npm)',
+              language: 'Node.js',
+              manager: 'npm',
+            },
+          ],
+        },
+      ],
+      diagnostics: [],
+    };
+    const service = new DockyardService({
+      dataDir: dir,
+      metricsIntervalMs: 0,
+      syncIntervalMs: 0,
+      autoTakeover: false,
+      scanImpl: async () => ({
+        projects: [/** @type {any} */ (project)],
+        diagnostics: [],
+        scannedDirs: 1,
+      }),
+    });
+    await service.init();
+
+    const first = await service.addProjectsFromScan(['project:/p'], ['/p']);
+    assert.equal(first.added, true);
+    assert.equal(first.appsAdded, 2);
+    assert.equal((await service.list()).length, 2);
+
+    const second = await service.addProjectsFromScan(['project:/p'], ['/p']);
+    assert.equal(second.appsAdded, 0);
+    assert.equal(second.skipped, 2);
+
+    const removed = await service.removeProject('project:/p');
+    assert.equal(removed.removed, true);
+    assert.equal(removed.removedApps, 2);
+    assert.equal((await service.list()).length, 0);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('项目级托管：找不到项目时报告 missing，不误加别的应用', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-project-missing-'));
+  try {
+    const service = new DockyardService({
+      dataDir: dir,
+      metricsIntervalMs: 0,
+      syncIntervalMs: 0,
+      autoTakeover: false,
+      scanImpl: async () => ({ projects: [], diagnostics: [], scannedDirs: 1 }),
+    });
+    await service.init();
+    const result = await service.addProjectsFromScan(['project:/nope'], ['/p']);
+    assert.equal(result.added, false);
+    assert.deepEqual(result.missing, ['project:/nope']);
+    assert.equal((await service.list()).length, 0);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('外部进程接管：停止外部进程、托管项目并启动应用', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-takeover-'));
+  try {
+    const project = {
+      id: 'project:/p',
+      name: 'p',
+      root: dir,
+      source: 'git',
+      container: null,
+      ecosystems: [
+        {
+          id: 'node-npm',
+          name: 'Node.js (npm)',
+          language: 'Node.js',
+          manager: 'npm',
+          apps: [
+            {
+              id: 'node:external:dev',
+              name: 'external-app',
+              dir,
+              runner: 'node',
+              command: process.execPath,
+              args: ['-e', 'setInterval(() => {}, 1000);'],
+              reason: 'test',
+              projectId: 'project:/p',
+              projectName: 'p',
+              projectRoot: dir,
+              ecosystemId: 'node-npm',
+              ecosystemName: 'Node.js (npm)',
+              language: 'Node.js',
+              manager: 'npm',
+            },
+          ],
+        },
+      ],
+      diagnostics: [],
+    };
+    /** @type {number[]} */
+    const stoppedPids = [];
+    const service = new DockyardService({
+      dataDir: dir,
+      metricsIntervalMs: 0,
+      syncIntervalMs: 0,
+      autoTakeover: false,
+      scanImpl: async () => ({
+        projects: [/** @type {any} */ (project)],
+        diagnostics: [],
+        scannedDirs: 1,
+      }),
+      processLister: async () => ({
+        processes: [
+          {
+            pid: 99999,
+            ppid: 1,
+            pgid: 99999,
+            cpuPercent: 1,
+            rssBytes: 1024,
+            command: 'node apps/external',
+            cwd: dir,
+            ports: [3000],
+            root: dir,
+          },
+        ],
+        error: '',
+      }),
+      terminateImpl: async (item) => {
+        stoppedPids.push(item.pid);
+        return { stopped: true, reason: 'test' };
+      },
+    });
+    await service.init();
+
+    const result = await service.takeoverProjectFromScan('project:/p', ['/p']);
+    assert.equal(result.takenOver, true, result.reason);
+    assert.deepEqual(result.stoppedPids, [99999]);
+    assert.equal(result.appsAdded, 1);
+    assert.equal(result.started.length, 1);
+    assert.deepEqual(stoppedPids, [99999]);
+
+    const apps = await service.list();
+    assert.equal(apps.length, 1);
+    assert.equal(apps[0]?.status, 'running');
+    await service.stop(apps[0].id);
+  } finally {
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});
+
+test('周期同步：新增应用、命令变化保留旧参数、失联标记而不删除', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-sync-'));
+  try {
+    /** @type {any[]} */
+    let currentApps = [];
+    /** @param {any[]} apps */
+    const makeProject = (apps) => ({
+      id: 'project:/p',
+      name: 'p',
+      root: '/p',
+      source: 'git',
+      container: null,
+      ecosystems: [
+        {
+          id: 'node-npm',
+          name: 'Node.js (npm)',
+          language: 'Node.js',
+          manager: 'npm',
+          apps,
+        },
+      ],
+      diagnostics: [],
+    });
+    /**
+     * @param {string} id
+     * @param {string} command
+     * @param {string[]} args
+     * @param {string} reason
+     */
+    const app = (id, command, args, reason) => ({
+      id,
+      name: id,
+      dir: '/p',
+      runner: 'node',
+      command,
+      args,
+      reason,
+      projectId: 'project:/p',
+      projectName: 'p',
+      projectRoot: '/p',
+      ecosystemId: 'node-npm',
+      ecosystemName: 'Node.js (npm)',
+      language: 'Node.js',
+      manager: 'npm',
+    });
+
+    const service = new DockyardService({
+      dataDir: dir,
+      metricsIntervalMs: 0,
+      syncIntervalMs: 0,
+      autoTakeover: false,
+      syncOnStart: false,
+      scanImpl: async () => ({
+        projects: [/** @type {any} */ (makeProject(currentApps))],
+        diagnostics: [],
+        scannedDirs: 1,
+      }),
+    });
+    await service.init();
+    currentApps = [app('a', 'npm', ['run', 'dev'], 'old')];
+    await service.add(/** @type {any} */ (currentApps[0]));
+
+    // 新增 b，同时 a 的命令变化；a 处于运行态，应标记 restartRequired
+    const recordA = service.store.get('a');
+    assert.ok(recordA);
+    recordA.status = 'running';
+    currentApps = [app('a', 'pnpm', ['run', 'dev'], 'new'), app('b', 'npm', ['run', 'start'], 'b')];
+    const first = await service.syncProjects();
+    assert.equal(first.added, 1);
+    assert.equal(first.changed, 1);
+    const updatedA = service.store.get('a');
+    assert.ok(updatedA);
+    assert.equal(updatedA.command, 'pnpm');
+    assert.equal(updatedA?.commandHistory?.length, 1);
+    assert.equal(updatedA.commandHistory?.[0]?.command, 'npm');
+    assert.equal(updatedA.restartRequired, true);
+    assert.ok(service.store.get('b'));
+
+    // b 从磁盘消失：标记 missing，记录仍在
+    currentApps = [updatedA];
+    const second = await service.syncProjects();
+    assert.equal(second.missing, 1);
+    assert.equal(service.store.get('b')?.missing, true);
+    assert.ok(service.store.get('b'));
+
+    // b 重新出现：清除 missing
+    currentApps = [updatedA, app('b', 'npm', ['run', 'start'], 'b')];
+    const third = await service.syncProjects();
+    assert.equal(third.reappeared, 1);
+    assert.equal(service.store.get('b')?.missing, false);
+  } finally {
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});
+
+test('自动接管：默认开启时发现外部进程会直接停止并启动托管应用', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-auto-takeover-'));
+  try {
+    const project = {
+      id: 'project:/auto',
+      name: 'auto',
+      root: dir,
+      source: 'git',
+      container: null,
+      ecosystems: [
+        {
+          id: 'node-npm',
+          name: 'Node.js (npm)',
+          language: 'Node.js',
+          manager: 'npm',
+          apps: [
+            {
+              id: 'node:auto:dev',
+              name: 'auto-app',
+              dir,
+              runner: 'node',
+              command: process.execPath,
+              args: ['-e', 'setInterval(() => {}, 1000);'],
+              reason: 'test',
+              projectId: 'project:/auto',
+              projectName: 'auto',
+              projectRoot: dir,
+              ecosystemId: 'node-npm',
+              ecosystemName: 'Node.js (npm)',
+              language: 'Node.js',
+              manager: 'npm',
+            },
+          ],
+        },
+      ],
+      diagnostics: [],
+    };
+    const service = new DockyardService({
+      dataDir: dir,
+      metricsIntervalMs: 0,
+      syncIntervalMs: 0,
+      autoTakeoverIntervalMs: 0,
+      autoTakeover: true,
+      scanImpl: async () => ({
+        projects: [/** @type {any} */ (project)],
+        diagnostics: [],
+        scannedDirs: 1,
+      }),
+      processLister: async () => ({
+        processes: [
+          {
+            pid: 99998,
+            ppid: 1,
+            pgid: 99998,
+            cpuPercent: 1,
+            rssBytes: 1024,
+            command: 'node apps/auto',
+            cwd: dir,
+            ports: [3000],
+            root: dir,
+          },
+        ],
+        error: '',
+      }),
+      terminateImpl: async () => ({ stopped: true, reason: 'test' }),
+    });
+    await service.init();
+    await service.addProject(/** @type {any} */ (project));
+
+    const summary = await service.autoTakeoverOnce();
+    assert.equal(summary.takenOver, 1);
+    assert.ok(service.lastAutoTakeover);
+    assert.equal(service.lastAutoTakeover.projectName, 'auto');
+    const apps = await service.list();
+    assert.equal(apps[0]?.status, 'running');
+    await service.stop('node:auto:dev');
+  } finally {
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 });

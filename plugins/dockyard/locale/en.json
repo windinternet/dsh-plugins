@@ -1,13 +1,6 @@
 {
   "meta": {
     "title": "dockyard local service host",
-    "description": "Scan local projects, supervise development services, read their logs, and show live status under the composer."
-  },
-  "loading": "loading",
-  "runningSuffix": "running",
-  "crashedSuffix": "crashed",
-  "toggleHint": "Expand or collapse the local service list",
-  "unavailable": "Status unavailable",
-  "unavailableHint": "the host may not have the HTTP server enabled",
-  "empty": "No applications hosted yet. Ask the agent to run dockyard_scan."
+    "description": "Scan local projects, supervise development services, read their logs, and manage them from a multi-tab page in the DSH sidebar."
+  }
 }

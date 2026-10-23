@@ -27,15 +27,43 @@ export const APP_STATUS = /** @type {const} */ ([
   'crashed',
 ]);
 
+/** 已知的运行器类型。未知值在解析时退回 shell，避免旧/坏记录让整行消失。 */
+export const APP_RUNNERS = /** @type {const} */ ([
+  'node',
+  'python',
+  'shell',
+  'maven',
+  'gradle',
+  'php',
+  'flutter',
+  'dart',
+  'go',
+  'rust',
+  'dotnet',
+  'ruby',
+]);
+
 /**
  * @typedef {object} ApplicationRecord
  * @property {string} id 稳定标识
  * @property {string} name 展示名
  * @property {string} dir 工作目录
- * @property {'node'|'python'|'shell'} runner 运行器类型
+ * @property {(typeof APP_RUNNERS)[number]} runner 运行器类型
  * @property {string} command 启动命令
  * @property {string[]} args 启动参数
  * @property {string} reason 首次被识别出来的理由（保留原始判定依据）
+ * @property {string} [projectId] 所属项目 id
+ * @property {string} [projectName] 所属项目展示名
+ * @property {string} [projectRoot] 项目根目录
+ * @property {string} [ecosystemId] 生态分组 id
+ * @property {string} [ecosystemName] 生态分组展示名
+ * @property {string} [language] 语言
+ * @property {string} [manager] 包管理器
+ * @property {boolean} [missing] 周期同步时发现磁盘上已不存在
+ * @property {number} [missingAt] 失联时间
+ * @property {number} [lastSeenAt] 最近一次在扫描结果中出现的时间
+ * @property {boolean} [restartRequired] 源码结构/启动命令变化，运行中的应用需要重启
+ * @property {{ at: number, command: string, args: string[], reason: string }[]} [commandHistory] 旧启动参数历史
  * @property {(typeof APP_STATUS)[number]} status 最近一次已知状态
  * @property {string} [statusReason] 状态变化的原因，面向用户解释
  * @property {number} [pid] 最近一次的进程号
@@ -55,7 +83,7 @@ export const APP_STATUS = /** @type {const} */ ([
  */
 
 /** 当前状态文件结构版本。加载到更低版本时按"未知字段忽略、缺失字段补默认"处理。 */
-export const STATE_VERSION = 1;
+export const STATE_VERSION = 3;
 
 /**
  * 建一个空状态。
@@ -145,7 +173,9 @@ function parseApplication(id, value, problems) {
     return null;
   }
 
-  const runner = raw.runner === 'python' || raw.runner === 'shell' ? raw.runner : 'node';
+  const runner = APP_RUNNERS.includes(/** @type {any} */ (raw.runner))
+    ? /** @type {any} */ (raw.runner)
+    : 'shell';
   const status = APP_STATUS.includes(/** @type {any} */ (raw.status))
     ? /** @type {any} */ (raw.status)
     : 'unknown';
@@ -158,6 +188,34 @@ function parseApplication(id, value, problems) {
     command: raw.command,
     args: Array.isArray(raw.args) ? raw.args.filter((a) => typeof a === 'string') : [],
     reason: typeof raw.reason === 'string' ? raw.reason : '（无记录）',
+    projectId: typeof raw.projectId === 'string' ? raw.projectId : undefined,
+    projectName: typeof raw.projectName === 'string' ? raw.projectName : undefined,
+    projectRoot: typeof raw.projectRoot === 'string' ? raw.projectRoot : undefined,
+    ecosystemId: typeof raw.ecosystemId === 'string' ? raw.ecosystemId : undefined,
+    ecosystemName: typeof raw.ecosystemName === 'string' ? raw.ecosystemName : undefined,
+    language: typeof raw.language === 'string' ? raw.language : undefined,
+    manager: typeof raw.manager === 'string' ? raw.manager : undefined,
+    missing: raw.missing === true,
+    missingAt: Number.isFinite(raw.missingAt) ? Number(raw.missingAt) : undefined,
+    lastSeenAt: Number.isFinite(raw.lastSeenAt) ? Number(raw.lastSeenAt) : undefined,
+    restartRequired: raw.restartRequired === true,
+    commandHistory: Array.isArray(raw.commandHistory)
+      ? raw.commandHistory
+          .filter(
+            (entry) =>
+              entry &&
+              typeof entry === 'object' &&
+              typeof entry.command === 'string' &&
+              Array.isArray(entry.args),
+          )
+          .slice(-10)
+          .map((entry) => ({
+            at: Number.isFinite(entry.at) ? Number(entry.at) : Date.now(),
+            command: String(entry.command),
+            args: entry.args.filter((/** @type {unknown} */ arg) => typeof arg === 'string'),
+            reason: typeof entry.reason === 'string' ? entry.reason : '',
+          }))
+      : undefined,
     status,
     statusReason: typeof raw.statusReason === 'string' ? raw.statusReason : undefined,
     pid: Number.isInteger(raw.pid) ? Number(raw.pid) : undefined,

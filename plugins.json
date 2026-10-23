@@ -7,7 +7,7 @@
       "packageName": "@dsh-plugins/dockyard",
       "dir": "plugins/dockyard",
       "kind": "host+ui",
-      "summary": "本机开发服务的可观测托管台：扫描项目、受监管地启停应用、tail 日志，并在 DSH 侧栏提供运行面板。",
+      "summary": "本机开发服务的可观测托管台：递归归一化项目/生态/应用，周期同步结构变化，可发现并接管外部启动的进程，以项目托管、以应用操作，持续记录 CPU/内存并提供仪表盘、诊断工具与方法论技能。",
       "status": "experimental",
       "dataFlow": "local-only",
       "specs": ["docs/product-specs/dockyard.md"]

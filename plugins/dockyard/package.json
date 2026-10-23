@@ -1,9 +1,9 @@
 {
   "name": "@dsh-plugins/dockyard",
-  "version": "0.1.1",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
-  "description": "本机开发服务的可观测托管台：扫描项目、受监管地启停应用、tail 日志，并在 DSH 侧栏提供状态面板。",
+  "description": "本机开发服务的可观测托管台：扫描项目、受监管地启停应用、tail 日志，并在 DSH 左侧栏提供多标签管理页。",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -15,6 +15,7 @@
     "index.js",
     "client.js",
     "src",
+    "skill",
     "locale",
     "icon.svg",
     "cordis.patch.yml"
@@ -31,7 +32,11 @@
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": []
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
     }
   },
   "$comment": "本插件没有任何依赖：工具定义与配置归一化用包内实现（src/internal/）。绝不要把 @deepseek-ai/* 宿主包写进 dependencies 或 peerDependencies —— pnpm 会把它装进 profile 并按包名遮住宿主自带的那份，宿主一升级就触发精确版本校验失败、tools 行被禁用（docs/references/dsh-plugin-upgrade-failure.md）。兼容性用 engines.dsh 声明。",
