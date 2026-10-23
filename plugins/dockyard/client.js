@@ -37,6 +37,16 @@ window.__ModuleLoader__.load({
     const DIRECTORY_PICKER_BRIDGE = ['__DSH', 'DIRECTORY', 'PICKER__'].join('_');
     const POLL_INTERVAL_MS = 5000;
     const LOG_POLL_INTERVAL_MS = 3000;
+    /**
+     * 面板里切换状态条后广播的事件。dock 与页面是两个独立 slot 组件，
+     * 靠这个事件立即同步，而不是等下一次 5 秒轮询。
+     */
+    const DOCK_REFRESH_EVENT = 'dockyard:refresh';
+    /**
+     * 状态条开关的本地缓存。Host 的状态才是事实源，这份缓存只用来避免
+     * 每次打开页面都先画出一条 bar、等第一次轮询回来再把它去掉。
+     */
+    const STATUS_BAR_CACHE_KEY = 'dockyard:status-bar-visible';
 
     /** 状态到文案 key 的映射。未知状态刻意显示"未知"，而不是猜一个。 */
     const STATUS_KEY = {
@@ -190,6 +200,28 @@ window.__ModuleLoader__.load({
         dockUnavailableHint: '宿主可能未启用 HTTP 服务',
         dockEmpty: '还没有托管任何应用。',
         dockOpen: '打开服务坞',
+        dockAria: '服务坞状态',
+        dockCrashed: '异常',
+        dockMissing: '失联',
+        dockRestartRequired: '需重启',
+        dockProjects: '项目',
+        dockCpu: 'CPU',
+        dockMemory: '内存',
+        dockEcosystems: '生态',
+        dockDetails: '展开或收起服务明细',
+        dockAttention: '需要关注',
+        dockRunningSection: '正在运行',
+        dockAttentionEmpty: '没有需要关注的服务。',
+        dockAllApps: '在服务坞查看全部 {count} 个应用',
+        dockRetry: '重试',
+        dockStatusBar: '输入框状态条',
+        dockStatusBarHint: '在输入框上方显示服务坞状态条',
+        dockStatusBarOn: '已显示输入框状态条。',
+        dockStatusBarOff: '已隐藏输入框状态条，可在服务坞页头重新开启。',
+        dockCpuTitle: '运行中应用的 CPU 合计',
+        dockMemoryTitle: '运行中应用的 RSS 合计（共享页会重复计算）',
+        dockEcoTitle: '语言 / 包管理器分布：{detail}',
+        dockHostMemory: '宿主内存 {used} / {total}',
         dismiss: '关闭',
         unknownError: '未知错误',
       },
@@ -335,6 +367,28 @@ window.__ModuleLoader__.load({
         dockUnavailableHint: 'the host may not have the HTTP server enabled',
         dockEmpty: 'No services hosted yet.',
         dockOpen: 'Open Dockyard',
+        dockAria: 'Dockyard status',
+        dockCrashed: 'crashed',
+        dockMissing: 'missing',
+        dockRestartRequired: 'restart needed',
+        dockProjects: 'projects',
+        dockCpu: 'CPU',
+        dockMemory: 'memory',
+        dockEcosystems: 'stacks',
+        dockDetails: 'Expand or collapse service details',
+        dockAttention: 'Needs attention',
+        dockRunningSection: 'Running',
+        dockAttentionEmpty: 'Nothing needs attention.',
+        dockAllApps: 'Open Dockyard to see all {count} apps',
+        dockRetry: 'Retry',
+        dockStatusBar: 'Composer status bar',
+        dockStatusBarHint: 'Show the Dockyard status bar above the composer',
+        dockStatusBarOn: 'Composer status bar is on.',
+        dockStatusBarOff: 'Composer status bar is off. Re-enable it from the Dockyard header.',
+        dockCpuTitle: 'Total CPU of running apps',
+        dockMemoryTitle: 'Total RSS of running apps (shared pages are double-counted)',
+        dockEcoTitle: 'Language / package manager breakdown: {detail}',
+        dockHostMemory: 'Host memory {used} / {total}',
         dismiss: 'Dismiss',
         unknownError: 'Unknown error',
       },
@@ -342,6 +396,31 @@ window.__ModuleLoader__.load({
 
     /** 在拿到 slot 注入的 t 之前的兜底：至少返回 key，不崩。 */
     const fallbackT = (key) => key;
+
+    /**
+     * 读状态条开关的本地缓存；存储不可用或被禁用时按"展示"处理。
+     * @returns {boolean}
+     */
+    function readStatusBarCache() {
+      try {
+        const value = globalThis.localStorage?.getItem(STATUS_BAR_CACHE_KEY);
+        return value === null || value === undefined ? true : value !== '0';
+      } catch {
+        return true;
+      }
+    }
+
+    /**
+     * 写状态条开关的本地缓存。写失败不影响功能，Host 侧仍会持久化。
+     * @param {boolean} visible
+     */
+    function writeStatusBarCache(visible) {
+      try {
+        globalThis.localStorage?.setItem(STATUS_BAR_CACHE_KEY, visible ? '1' : '0');
+      } catch {
+        // 存储被禁用时忽略：下一次轮询仍会拿到 Host 的真实值。
+      }
+    }
 
     /**
      * 把模板里的 {name} 替换成值。
@@ -407,7 +486,7 @@ window.__ModuleLoader__.load({
     /**
      * 读一次状态快照。
      * @param {AbortSignal} [signal]
-     * @returns {Promise<{ applications: any[], projects: any[], system: any, warnings: string[], scanRoots: string[] }>}
+     * @returns {Promise<{ applications: any[], projects: any[], system: any, preferences: { statusBar: boolean }, warnings: string[], scanRoots: string[] }>}
      */
     async function fetchStatus(signal) {
       const response = await fetch(STATUS_ROUTE, {
@@ -425,6 +504,13 @@ window.__ModuleLoader__.load({
         applications: Array.isArray(body.applications) ? body.applications : [],
         projects: Array.isArray(body.projects) ? body.projects : [],
         system: body.system && typeof body.system === 'object' ? body.system : null,
+        // 旧 Host 不返回 preferences 时保持"展示"，避免升级瞬间界面突然少一块。
+        preferences: {
+          statusBar:
+            body.preferences && typeof body.preferences === 'object'
+              ? body.preferences.statusBar !== false
+              : true,
+        },
         sync: body.sync && typeof body.sync === 'object' ? body.sync : null,
         syncIntervalMs: Number(body.syncIntervalMs) || 0,
         autoTakeover: body.autoTakeover === true,
@@ -525,6 +611,8 @@ window.__ModuleLoader__.load({
 .dy-header-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 10px;
   flex: 0 0 auto;
 }
@@ -1164,46 +1252,427 @@ window.__ModuleLoader__.load({
 }
 .dy-empty-title { font-size: 15px; font-weight: 600; }
 .dy-empty-hint { font-size: 12px; color: var(--dsw-alias-label-tertiary, inherit); max-width: 460px; }
-.dy-dock {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 6px 10px;
+.dy-dock-strip {
+  box-sizing: border-box;
+  /* 与输入框卡片同宽：左右各让出 side-clearance，再受卡片最大宽度限制。
+     两者相同时 dock 的左右边缘正好落在输入框边框上。 */
+  width: calc(100% - var(--dsh-composer-side-clearance, 16px) - var(--dsh-composer-side-clearance, 16px));
+  max-width: var(--dsh-composer-card-max-width, 952px);
+  margin: 0 auto;
+  container-type: inline-size;
+  color: var(--dsw-alias-label-secondary, inherit);
   font-size: 12px;
+  line-height: 1.2;
+}
+.dy-bar {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 40px;
+  padding: 0 6px 0 14px;
+  border: 1px solid var(--dsw-alias-border-l2, var(--dsw-alias-border-l1, transparent));
+  border-radius: var(--dsw-radius-md, 12px);
+  background: var(--dsw-alias-bg-layer-1, var(--dsw-alias-bg-base, transparent));
+  box-shadow: var(--dsw-elevation-soft, none);
+  overflow: hidden;
+}
+/* 左侧竖条是这条 bar 唯一的整块色彩：正常绿、需要关注黄、异常红、全部停止灰。 */
+.dy-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--dsw-alias-state-success-primary, #2ea043);
+}
+.dy-bar[data-tone='warn']::before { background: var(--dsw-alias-state-warn-primary, #d29922); }
+.dy-bar[data-tone='error']::before { background: var(--dsw-alias-state-error-primary, #f85149); }
+.dy-bar[data-tone='idle']::before { background: var(--dsw-alias-state-idle-primary, #8b949e); }
+.dy-bar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  min-width: 0;
+  color: var(--dsw-alias-label-primary, inherit);
+}
+.dy-bar-mark { display: inline-flex; color: var(--dsw-alias-label-tertiary, inherit); }
+.dy-bar-brand-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.dy-bar-brand-btn:hover .dy-bar-mark { color: var(--dsw-alias-label-secondary, inherit); }
+.dy-bar-brand-btn:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary, currentColor);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.dy-bar-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.dy-bar-sep {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  background: var(--dsw-alias-border-l1, transparent);
+}
+.dy-bar-chunk { display: inline-flex; align-items: center; min-width: 0; flex: none; }
+.dy-bar-health { gap: 5px; }
+.dy-bar-scale { gap: 10px; }
+.dy-bar-res { gap: 12px; }
+.dy-bar-eco { gap: 5px; flex: 0 1 auto; overflow: hidden; }
+.dy-bar-spacer { flex: 1 1 auto; min-width: 4px; }
+.dy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  flex: none;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-secondary, inherit);
+  background: var(--dsw-alias-interactive-bg-hover, transparent);
+}
+.dy-chip-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.dy-chip[data-tone='success'] {
+  background: var(--dsw-alias-state-success-tertiary, #e6faed);
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #2ea043) 14%, transparent);
+  color: color-mix(
+    in srgb,
+    var(--dsw-alias-state-success-primary, #2ea043) 60%,
+    var(--dsw-alias-label-primary, #111)
+  );
+}
+.dy-chip[data-tone='error'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary, #f85149) 14%, transparent);
+  color: color-mix(
+    in srgb,
+    var(--dsw-alias-state-error-primary, #f85149) 62%,
+    var(--dsw-alias-label-primary, #111)
+  );
+}
+.dy-chip[data-tone='warn'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-warn-primary, #d29922) 16%, transparent);
+  color: color-mix(
+    in srgb,
+    var(--dsw-alias-state-warn-primary, #d29922) 55%,
+    var(--dsw-alias-label-primary, #111)
+  );
+}
+.dy-chip[data-tone='neutral'] {
+  background: var(--dsw-alias-interactive-bg-hover, transparent);
+  color: var(--dsw-alias-label-tertiary, inherit);
+}
+.dy-metric { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.dy-metric-value {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary, inherit);
+  font-variant-numeric: tabular-nums;
+}
+.dy-metric-label { font-size: 11px; color: var(--dsw-alias-label-tertiary, inherit); }
+.dy-res { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.dy-res-label {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--dsw-alias-label-tertiary, inherit);
+}
+.dy-res-value {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary, inherit);
+  font-variant-numeric: tabular-nums;
+}
+.dy-res-meter {
+  width: 34px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--dsw-alias-interactive-bg-hover, transparent);
+  overflow: hidden;
+}
+.dy-res-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--dsw-alias-state-success-primary, #2ea043);
+}
+.dy-res[data-tone='warn'] .dy-res-fill { background: var(--dsw-alias-state-warn-primary, #d29922); }
+.dy-res[data-tone='error'] .dy-res-fill { background: var(--dsw-alias-state-error-primary, #f85149); }
+.dy-eco-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--dsw-alias-label-tertiary, inherit);
+  white-space: nowrap;
+}
+.dy-tag-eco {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  flex: none;
+  white-space: nowrap;
+  font-size: 11px;
+  background: var(--dsw-alias-interactive-bg-hover, transparent);
   color: var(--dsw-alias-label-secondary, inherit);
 }
-.dy-dock-head {
+.dy-tag-eco b { font-weight: 600; color: var(--dsw-alias-label-primary, inherit); }
+.dy-tag-eco em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-tertiary, inherit);
+}
+.dy-tag-eco-count {
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-variant-numeric: tabular-nums;
+}
+.dy-tag-eco-more {
+  padding: 0 5px;
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-variant-numeric: tabular-nums;
+}
+.dy-bar-actions { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.dy-bar-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--dsw-alias-label-secondary, inherit);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dy-bar-btn:hover {
+  background: var(--dsw-alias-interactive-bg-hover, transparent);
+  color: var(--dsw-alias-label-primary, inherit);
+}
+.dy-bar-icon {
+  appearance: none;
+  flex: none;
+  border: none;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--dsw-alias-label-tertiary, inherit);
+  cursor: pointer;
+}
+.dy-bar-icon:hover {
+  background: var(--dsw-alias-interactive-bg-hover, transparent);
+  color: var(--dsw-alias-label-primary, inherit);
+}
+.dy-bar-btn:focus-visible,
+.dy-bar-icon:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary, currentColor);
+  outline-offset: 1px;
+}
+.dy-chevron {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-1px, -1px);
+  transition: transform 0.15s ease;
+}
+.dy-bar-icon[aria-expanded='true'] .dy-chevron {
+  transform: rotate(-135deg) translate(-1px, -1px);
+}
+.dy-bar-state {
+  font-size: 11.5px;
+  color: var(--dsw-alias-label-tertiary, inherit);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dy-bar-error {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--dsw-alias-state-error-primary, #f85149);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 展开后的明细：只列需要关注和正在运行的应用，避免 90 个已停止应用淹没有效信息。 */
+.dy-dock-panel {
+  margin-top: 6px;
+  padding: 6px;
+  border: 1px solid var(--dsw-alias-border-l2, var(--dsw-alias-border-l1, transparent));
+  border-radius: var(--dsw-radius-md, 12px);
+  background: var(--dsw-alias-bg-layer-1, var(--dsw-alias-bg-base, transparent));
+  box-shadow: var(--dsw-elevation-soft, none);
+  max-height: 264px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dy-dock-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 7px 5px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--dsw-alias-label-tertiary, inherit);
+  text-transform: uppercase;
+}
+.dy-dock-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  appearance: none;
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  color: var(--dsw-alias-label-primary, inherit);
-  cursor: pointer;
-  text-align: left;
-}
-.dy-dock-count { font-variant-numeric: tabular-nums; opacity: 0.9; }
-.dy-dock-list { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow: auto; }
-.dy-dock-row { display: flex; align-items: baseline; gap: 8px; }
-.dy-dock-name { color: var(--dsw-alias-label-primary, inherit); }
-.dy-dock-meta {
-  flex: 1;
   min-width: 0;
-  font-size: 11px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  font-size: 11.5px;
+}
+.dy-dock-row:hover { background: var(--dsw-alias-interactive-bg-hover, transparent); }
+.dy-dock-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--dsw-alias-state-idle-primary, #8b949e);
+}
+.dy-dock-dot[data-tone='success'] { background: var(--dsw-alias-state-success-primary, #2ea043); }
+.dy-dock-dot[data-tone='warn'] { background: var(--dsw-alias-state-warn-primary, #d29922); }
+.dy-dock-dot[data-tone='error'] { background: var(--dsw-alias-state-error-primary, #f85149); }
+.dy-dock-row-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dy-dock-row-project {
+  flex: 0 1 auto;
+  min-width: 0;
   color: var(--dsw-alias-label-tertiary, inherit);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dy-dock-hint { font-size: 11px; color: var(--dsw-alias-label-tertiary, inherit); }
-.dy-dock-open {
-  align-self: flex-start;
+.dy-dock-row-status { flex: none; font-size: 11px; color: var(--dsw-alias-label-secondary, inherit); }
+.dy-dock-row-status[data-tone='warn'] { color: var(--dsw-alias-state-warn-primary, #d29922); }
+.dy-dock-row-status[data-tone='error'] { color: var(--dsw-alias-state-error-primary, #f85149); }
+.dy-dock-row-meta {
+  margin-left: auto;
+  flex: none;
+  display: flex;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dy-dock-panel-empty {
+  padding: 8px;
+  font-size: 11.5px;
+  color: var(--dsw-alias-label-tertiary, inherit);
+  text-align: center;
+}
+.dy-dock-panel-foot {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
   margin-top: 2px;
-  font-size: 11px;
-  padding: 2px 8px;
+  border-top: 1px solid var(--dsw-alias-border-l1, transparent);
+}
+.dy-dock-warn {
+  padding: 4px 7px;
+  font-size: 10.5px;
+  color: var(--dsw-alias-state-warn-primary, #d29922);
+}
+/* 服务坞页头的"输入框状态条"开关。 */
+.dy-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, inherit);
+  cursor: pointer;
+  user-select: none;
+}
+.dy-switch-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.dy-switch-track {
+  position: relative;
+  box-sizing: border-box;
+  width: 30px;
+  height: 18px;
+  border-radius: 999px;
+  flex: none;
+  background: var(--dsw-alias-interactive-bg-active, var(--dsw-alias-interactive-bg-hover, transparent));
+  border: 1px solid var(--dsw-alias-border-l2, transparent);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.dy-switch-thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--dsw-alias-switch-thumb, #fff);
+  transition: transform 0.15s ease;
+}
+.dy-switch-input:checked + .dy-switch-track {
+  background: var(--dsw-alias-state-business-primary, #4176e6);
+  border-color: transparent;
+}
+.dy-switch-input:checked + .dy-switch-track .dy-switch-thumb { transform: translateX(12px); }
+.dy-switch-input:focus-visible + .dy-switch-track {
+  outline: 2px solid var(--dsw-alias-brand-primary, currentColor);
+  outline-offset: 2px;
+}
+.dy-switch-input:disabled + .dy-switch-track { opacity: 0.5; cursor: default; }
+.dy-switch-label { white-space: nowrap; }
+/* 窄窗口按优先级舍弃低价值块：生态 → 规模 → 资源。健康状态和操作始终保留。 */
+@container (max-width: 900px) {
+  .dy-bar-eco { display: none; }
+}
+@container (max-width: 760px) {
+  .dy-bar-scale { display: none; }
+}
+@container (max-width: 640px) {
+  .dy-bar-res { display: none; }
 }
 `;
 
@@ -3059,6 +3528,7 @@ window.__ModuleLoader__.load({
         applications: [],
         projects: [],
         system: null,
+        preferences: { statusBar: readStatusBarCache() },
         sync: null,
         syncIntervalMs: 0,
         autoTakeover: false,
@@ -3102,6 +3572,7 @@ window.__ModuleLoader__.load({
       const loadStatus = React.useCallback(async (signal) => {
         try {
           const data = await fetchStatus(signal);
+          writeStatusBarCache(data.preferences.statusBar);
           setStatus({ phase: 'ready', ...data, error: '' });
         } catch (error) {
           if (signal && signal.aborted) return;
@@ -3196,6 +3667,33 @@ window.__ModuleLoader__.load({
           }
         },
         [loadStatus],
+      );
+
+      /** 状态条开关：写 Host、更新本地快照，并让输入框上方的 dock 立刻重新拉取。 */
+      const toggleStatusBar = React.useCallback(
+        async (visible) => {
+          setBusy('status-bar');
+          setNotice(null);
+          try {
+            const result = await postAction('set-status-bar', { visible });
+            const next = result?.visible !== false;
+            writeStatusBarCache(next);
+            setStatus((previous) => ({
+              ...previous,
+              preferences: { ...(previous.preferences ?? {}), statusBar: next },
+            }));
+            globalThis.dispatchEvent?.(new Event(DOCK_REFRESH_EVENT));
+            setNotice({
+              kind: 'info',
+              text: next ? t('dockStatusBarOn') : t('dockStatusBarOff'),
+            });
+          } catch (error) {
+            setNotice({ kind: 'error', text: messageOf(error) });
+          } finally {
+            setBusy('');
+          }
+        },
+        [t],
       );
 
       const removeApp = React.useCallback(
@@ -3657,6 +4155,8 @@ window.__ModuleLoader__.load({
         });
       }
 
+      const statusBarVisible = status.preferences?.statusBar !== false;
+
       return h(
         'div',
         { className: 'dy-root' },
@@ -3677,6 +4177,23 @@ window.__ModuleLoader__.load({
               'div',
               { className: 'dy-header-actions' },
               busy !== '' ? h('span', { className: 'dy-busy' }, t('busy')) : null,
+              h(
+                'label',
+                { className: 'dy-switch', title: t('dockStatusBarHint') },
+                h('input', {
+                  type: 'checkbox',
+                  className: 'dy-switch-input',
+                  checked: statusBarVisible,
+                  disabled: busy !== '',
+                  onChange: (event) => void toggleStatusBar(event.target.checked),
+                }),
+                h(
+                  'span',
+                  { className: 'dy-switch-track', 'aria-hidden': true },
+                  h('span', { className: 'dy-switch-thumb' }),
+                ),
+                h('span', { className: 'dy-switch-label' }, t('dockStatusBar')),
+              ),
               h(
                 'button',
                 {
@@ -3762,7 +4279,42 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 输入框上方的状态停靠条。没有托管任何应用且没有错误时不占空间。
+     * 把应用归纳成"语言 + 包管理器"生态分组，按应用数降序。
+     * 没有语言信息时退回生态名，再退回"未知语言"——不伪造分类。
+     *
+     * @param {any[]} applications
+     * @param {(key: string) => string} t
+     * @returns {{ key: string, language: string, manager: string, count: number }[]}
+     */
+    function ecosystemGroups(applications, t) {
+      /** @type {Map<string, { key: string, language: string, manager: string, count: number }>} */
+      const groups = new Map();
+      for (const app of applications) {
+        const language =
+          typeof app.language === 'string' && app.language !== ''
+            ? app.language
+            : typeof app.ecosystemName === 'string' && app.ecosystemName !== ''
+              ? app.ecosystemName
+              : t('languageUnknown');
+        const manager = typeof app.manager === 'string' ? app.manager : '';
+        const key = `${language}::${manager}`;
+        const group = groups.get(key);
+        if (group) group.count += 1;
+        else groups.set(key, { key, language, manager, count: 1 });
+      }
+      return [...groups.values()].sort(
+        (a, b) => b.count - a.count || a.language.localeCompare(b.language),
+      );
+    }
+
+    /**
+     * 输入框上方的状态停靠条。
+     *
+     * 一个 compact bar，按"身份 → 健康 → 规模 → 资源 → 生态 → 操作"分块，
+     * 状态用标签和语义色表达，其余信息保持中性，避免整条 bar 变成调色盘。
+     * 宽度与输入框卡片对齐（见 CSS 里的 side-clearance / card-max-width 计算）。
+     * 可以在服务坞页头关闭；开关持久化在 Host 侧，所有会话共享同一选择。
+     *
      * @param {{ t?: (key: string) => string, openPanel?: () => void }} props
      */
     function DockyardDock(props) {
@@ -3770,125 +4322,492 @@ window.__ModuleLoader__.load({
       const [state, setState] = React.useState({
         phase: 'loading',
         applications: [],
+        projects: [],
+        system: null,
+        preferences: { statusBar: readStatusBarCache() },
         warnings: [],
+        error: '',
       });
       const [expanded, setExpanded] = React.useState(false);
+      const [refreshNonce, setRefreshNonce] = React.useState(0);
 
       React.useEffect(() => {
         const controller = new AbortController();
         let timer = null;
+        let inFlight = false;
         const tick = async () => {
+          if (timer !== null) {
+            clearTimeout(timer);
+            timer = null;
+          }
+          if (inFlight) return;
+          inFlight = true;
           try {
             const data = await fetchStatus(controller.signal);
             if (controller.signal.aborted) return;
-            setState({ phase: 'ready', applications: data.applications, warnings: data.warnings });
+            writeStatusBarCache(data.preferences.statusBar);
+            setState({ phase: 'ready', ...data, error: '' });
           } catch (error) {
             if (controller.signal.aborted) return;
             setState((previous) => ({
+              ...previous,
               phase: 'error',
-              applications: previous.applications,
-              warnings: previous.warnings,
               error: messageOf(error),
             }));
           } finally {
+            inFlight = false;
             if (!controller.signal.aborted) timer = setTimeout(tick, POLL_INTERVAL_MS);
           }
         };
+        const refresh = () => {
+          void tick();
+        };
+        globalThis.addEventListener?.(DOCK_REFRESH_EVENT, refresh);
         void tick();
         return () => {
+          globalThis.removeEventListener?.(DOCK_REFRESH_EVENT, refresh);
           controller.abort();
           if (timer !== null) clearTimeout(timer);
         };
-      }, []);
+      }, [refreshNonce]);
 
-      const running = state.applications.filter((app) => app.status === 'running').length;
-      const total = state.applications.length;
-      const crashed = state.applications.filter((app) => app.status === 'crashed').length;
+      // 用户在服务坞页头关掉状态条时，这里连 style 都不注入，输入框上方不留空隙。
+      if (state.preferences.statusBar === false) return null;
 
-      if (state.phase !== 'error' && total === 0) return null;
+      const apps = state.applications;
+      const total = apps.length;
+      const runningApps = apps.filter((app) => app.status === 'running');
+      const crashedApps = apps.filter((app) => app.status === 'crashed');
+      const missingApps = apps.filter((app) => app.missing === true);
+      const runningCount = runningApps.length;
+      const crashedCount = crashedApps.length;
+      const missingCount = missingApps.length;
+      // 没有采样时宁可显示"—"：运行中但平台不支持采样，和"CPU 真的是 0%"是两回事。
+      const cpuSamples = runningApps.filter((app) => Number.isFinite(app.cpuPercent));
+      const rssSamples = runningApps.filter((app) => Number.isFinite(app.rssBytes));
+      const sumOf = (list, key) => list.reduce((sum, app) => sum + Number(app[key]), 0);
+      const totalCpu =
+        runningCount === 0
+          ? 0
+          : cpuSamples.length > 0
+            ? sumOf(cpuSamples, 'cpuPercent')
+            : undefined;
+      const totalRss =
+        runningCount === 0 ? 0 : rssSamples.length > 0 ? sumOf(rssSamples, 'rssBytes') : undefined;
+      const projectCount = Array.isArray(state.projects)
+        ? state.projects.length
+        : new Set(apps.map((app) => app.projectId ?? app.projectRoot ?? app.id)).size;
+      const ecosystems = ecosystemGroups(apps, t);
+      const shownEcosystems = ecosystems.slice(0, 2);
+      const hiddenEcosystems = ecosystems.length - shownEcosystems.length;
+      const system = state.system ?? {};
+      const hostTotal = Number(system.totalmem) || 0;
+      const hostFree = Number(system.freemem) || 0;
+      const hostUsed = hostTotal > 0 ? Math.max(0, hostTotal - hostFree) : 0;
+      const errorPhase = state.phase === 'error';
+      const tone =
+        crashedCount > 0
+          ? 'error'
+          : missingCount > 0 || errorPhase
+            ? 'warn'
+            : runningCount > 0
+              ? 'success'
+              : 'idle';
+      const cpuTone =
+        totalCpu === undefined
+          ? 'idle'
+          : totalCpu >= 85
+            ? 'error'
+            : totalCpu >= 60
+              ? 'warn'
+              : 'success';
+      const cpuWidth = totalCpu === undefined ? 0 : Math.max(0, Math.min(100, totalCpu));
+      const memoryTitle =
+        hostTotal > 0
+          ? `${t('dockMemoryTitle')} · ${format(t('dockHostMemory'), {
+              used: formatBytes(hostUsed),
+              total: formatBytes(hostTotal),
+            })}`
+          : t('dockMemoryTitle');
+      const ecoTitle = format(t('dockEcoTitle'), {
+        detail:
+          ecosystems
+            .map(
+              (group) =>
+                `${group.language}${group.manager ? ` · ${group.manager}` : ''} ${group.count}`,
+            )
+            .join(' / ') || t('dockEmpty'),
+      });
 
-      const summary =
-        state.phase === 'loading'
-          ? t('dockLoading')
-          : crashed > 0
-            ? `${running}/${total} ${t('dockRunningSuffix')}，${crashed} ${t('dockCrashedSuffix')}`
-            : `${running}/${total} ${t('dockRunningSuffix')}`;
+      /** @param {string} toneName @param {string} label @param {string} [title] */
+      const chip = (toneName, label, title) =>
+        h(
+          'span',
+          { className: 'dy-chip', 'data-tone': toneName, title },
+          h('span', { className: 'dy-chip-dot', 'aria-hidden': true }),
+          h('span', null, label),
+        );
+
+      /** @param {number} count @param {string} label */
+      const metric = (count, label) =>
+        h(
+          'span',
+          { className: 'dy-metric' },
+          h('span', { className: 'dy-metric-value' }, String(count)),
+          h('span', { className: 'dy-metric-label' }, label),
+        );
+
+      const brandChildren = [
+        h('span', { className: 'dy-bar-mark' }, h(DockyardIcon, { size: 14 })),
+        h('span', { className: 'dy-bar-title' }, t('pageTitle')),
+      ];
+      const brand = props.openPanel
+        ? h(
+            'button',
+            {
+              type: 'button',
+              className: 'dy-bar-brand dy-bar-brand-btn',
+              title: t('dockOpen'),
+              onClick: props.openPanel,
+            },
+            ...brandChildren,
+          )
+        : h('span', { className: 'dy-bar-brand', title: t('dockAria') }, ...brandChildren);
+
+      const openButton = props.openPanel
+        ? h(
+            'button',
+            {
+              type: 'button',
+              className: 'dy-bar-icon',
+              title: t('dockOpen'),
+              'aria-label': t('dockOpen'),
+              onClick: props.openPanel,
+            },
+            h(
+              'svg',
+              {
+                width: 13,
+                height: 13,
+                viewBox: '0 0 16 16',
+                fill: 'none',
+                'aria-hidden': true,
+              },
+              h('path', {
+                d: 'M6 3.5h6.5V10M12.5 3.5 5 11',
+                stroke: 'currentColor',
+                strokeWidth: 1.5,
+                strokeLinecap: 'round',
+                strokeLinejoin: 'round',
+              }),
+            ),
+          )
+        : null;
+
+      /** 空间足够的简单状态用带文字的打开按钮，图标按钮留给信息密集的主 bar。 */
+      const openTextButton = props.openPanel
+        ? h(
+            'button',
+            { type: 'button', className: 'dy-bar-btn', onClick: props.openPanel },
+            t('dockOpen'),
+          )
+        : null;
+
+      /** 首次加载 / 不可用但不占大块空间：仍然给出明确文案，不出现空白条。 */
+      const simpleBar = (children, toneName) =>
+        h(
+          'div',
+          { className: 'dy-dock-strip' },
+          h('style', null, CSS),
+          h(
+            'div',
+            {
+              className: 'dy-bar',
+              role: 'group',
+              'aria-label': t('dockAria'),
+              'data-tone': toneName,
+            },
+            ...children,
+          ),
+        );
+
+      if (total === 0 && state.phase === 'loading') {
+        return simpleBar(
+          [
+            brand,
+            h('span', { className: 'dy-bar-sep' }),
+            chip('neutral', t('dockLoading')),
+            h('span', { className: 'dy-bar-spacer' }),
+            openTextButton,
+          ],
+          'idle',
+        );
+      }
+
+      if (total === 0 && errorPhase) {
+        return simpleBar(
+          [
+            brand,
+            h('span', { className: 'dy-bar-sep' }),
+            chip('error', t('dockUnavailable')),
+            h('span', { className: 'dy-bar-error', title: state.error }, state.error),
+            h('span', { className: 'dy-bar-spacer' }),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dy-bar-btn',
+                onClick: () => setRefreshNonce((value) => value + 1),
+              },
+              t('dockRetry'),
+            ),
+            openTextButton,
+          ],
+          'error',
+        );
+      }
+
+      if (total === 0) {
+        return simpleBar(
+          [
+            brand,
+            h('span', { className: 'dy-bar-sep' }),
+            h('span', { className: 'dy-bar-state' }, t('dockEmpty')),
+            h('span', { className: 'dy-bar-spacer' }),
+            openTextButton,
+          ],
+          'idle',
+        );
+      }
+
+      const ranked = [...apps].sort((a, b) => {
+        const rank = (app) =>
+          app.status === 'crashed'
+            ? 0
+            : app.missing === true
+              ? 1
+              : app.status === 'unknown'
+                ? 2
+                : app.restartRequired === true
+                  ? 3
+                  : app.status === 'running'
+                    ? 4
+                    : 5;
+        return rank(a) - rank(b);
+      });
+      // 明细只保留"需要关注"和"正在运行"的应用：90 多个已停止应用不该淹没真正的信息。
+      const detailRows = ranked.filter(
+        (app) =>
+          app.status === 'crashed' ||
+          app.status === 'unknown' ||
+          app.status === 'running' ||
+          app.missing === true ||
+          app.restartRequired === true,
+      );
+
+      const detailRow = (app) => {
+        const rowTone =
+          app.status === 'crashed'
+            ? 'error'
+            : app.missing === true || app.status === 'unknown' || app.restartRequired === true
+              ? 'warn'
+              : 'success';
+        const statusLabel =
+          app.status === 'crashed'
+            ? t('dockCrashed')
+            : app.missing === true
+              ? t('dockMissing')
+              : app.status === 'unknown'
+                ? t('statusUnknown')
+                : app.status === 'running'
+                  ? t('dockRunningSuffix')
+                  : t('statusStopped');
+        const meta = [];
+        if (app.pid) meta.push(`pid ${app.pid}`);
+        if (app.status === 'running' && Number.isFinite(app.cpuPercent)) {
+          meta.push(`CPU ${formatPercent(app.cpuPercent, '—')}`);
+        }
+        if (app.status === 'running' && Number.isFinite(app.rssBytes) && app.rssBytes > 0) {
+          meta.push(formatBytes(app.rssBytes));
+        }
+        if (Number.isFinite(app.uptimeMs) && app.uptimeMs > 0) {
+          meta.push(formatUptime(app.uptimeMs, t));
+        }
+        return h(
+          'div',
+          { key: app.id, className: 'dy-dock-row', title: app.statusReason ?? '' },
+          h('span', { className: 'dy-dock-dot', 'data-tone': rowTone, 'aria-hidden': true }),
+          h('span', { className: 'dy-dock-row-name' }, app.name),
+          app.projectName ? h('span', { className: 'dy-dock-row-project' }, app.projectName) : null,
+          h(
+            'span',
+            { className: 'dy-dock-row-status', 'data-tone': rowTone },
+            app.restartRequired === true
+              ? `${statusLabel} · ${t('dockRestartRequired')}`
+              : statusLabel,
+          ),
+          meta.length > 0 ? h('span', { className: 'dy-dock-row-meta' }, meta.join(' · ')) : null,
+        );
+      };
+
+      const ecoTags = shownEcosystems.map((group) =>
+        h(
+          'span',
+          {
+            key: group.key,
+            className: 'dy-tag-eco',
+            title: `${group.language}${group.manager ? ` · ${group.manager}` : ''} · ${group.count}`,
+          },
+          h('b', null, group.language),
+          group.manager ? h('em', null, `· ${group.manager}`) : null,
+          h('span', { className: 'dy-tag-eco-count' }, String(group.count)),
+        ),
+      );
+      if (hiddenEcosystems > 0) {
+        ecoTags.push(
+          h(
+            'span',
+            { key: 'dock-eco-more', className: 'dy-tag-eco dy-tag-eco-more', title: ecoTitle },
+            `+${hiddenEcosystems}`,
+          ),
+        );
+      }
+
+      const runningRows = detailRows.filter((app) => app.status === 'running');
+      const attentionRows = detailRows.filter((app) => app.status !== 'running');
+
+      const detailPanel = expanded
+        ? h(
+            'div',
+            { className: 'dy-dock-panel', id: 'dy-dock-detail' },
+            h(
+              'div',
+              { className: 'dy-dock-panel-head' },
+              h('span', null, `${t('dockAttention')} ${attentionRows.length}`),
+              h('span', null, `${t('dockRunningSection')} ${runningRows.length}`),
+            ),
+            detailRows.length > 0
+              ? h(React.Fragment, null, ...detailRows.map(detailRow))
+              : h('div', { className: 'dy-dock-panel-empty' }, t('dockAttentionEmpty')),
+            state.warnings.length > 0
+              ? h('div', { className: 'dy-dock-warn' }, state.warnings.join(' / '))
+              : null,
+            props.openPanel
+              ? h(
+                  'div',
+                  { className: 'dy-dock-panel-foot' },
+                  h(
+                    'button',
+                    { type: 'button', className: 'dy-bar-btn', onClick: props.openPanel },
+                    format(t('dockAllApps'), { count: total }),
+                  ),
+                )
+              : null,
+          )
+        : null;
 
       return h(
         'div',
-        { className: 'dy-dock' },
+        { className: 'dy-dock-strip' },
         h('style', null, CSS),
         h(
-          'button',
+          'div',
           {
-            type: 'button',
-            className: 'dy-dock-head',
-            'aria-expanded': expanded,
-            title: t('dockToggle'),
-            onClick: () => setExpanded((value) => !value),
+            className: 'dy-bar',
+            role: 'group',
+            'aria-label': t('dockAria'),
+            'data-tone': tone,
           },
-          h('span', { className: 'dy-dock-count' }, `dockyard · ${summary}`),
-          h('span', { style: { opacity: 0.6 } }, expanded ? '▾' : '▸'),
-        ),
-        state.phase === 'error'
-          ? h(
-              'div',
-              { className: 'dy-dock-hint' },
-              `${t('dockUnavailable')}：${state.error}（${t('dockUnavailableHint')}）`,
-            )
-          : null,
-        expanded && total > 0
-          ? h(
-              React.Fragment,
-              null,
+          brand,
+          h('span', { className: 'dy-bar-sep' }),
+          h(
+            'span',
+            { className: 'dy-bar-chunk dy-bar-health' },
+            chip(
+              'success',
+              `${runningCount}/${total} ${t('dockRunningSuffix')}`,
+              t('dockRunningSuffix'),
+            ),
+            crashedCount > 0
+              ? chip(
+                  'error',
+                  `${crashedCount} ${t('dockCrashed')}`,
+                  crashedApps
+                    .map((app) => `${app.projectName ? `${app.projectName} / ` : ''}${app.name}`)
+                    .join('、'),
+                )
+              : null,
+            missingCount > 0
+              ? chip(
+                  'warn',
+                  `${missingCount} ${t('dockMissing')}`,
+                  missingApps
+                    .map((app) => `${app.projectName ? `${app.projectName} / ` : ''}${app.name}`)
+                    .join('、'),
+                )
+              : null,
+            errorPhase ? chip('error', t('dockUnavailable'), state.error) : null,
+          ),
+          h('span', { className: 'dy-bar-sep' }),
+          h(
+            'span',
+            { className: 'dy-bar-chunk dy-bar-scale' },
+            metric(projectCount, t('dockProjects')),
+          ),
+          h('span', { className: 'dy-bar-sep' }),
+          h(
+            'span',
+            { className: 'dy-bar-chunk dy-bar-res' },
+            h(
+              'span',
+              { className: 'dy-res', 'data-tone': cpuTone, title: t('dockCpuTitle') },
+              h('span', { className: 'dy-res-label' }, t('dockCpu')),
               h(
-                'div',
-                { className: 'dy-dock-list' },
-                ...state.applications.map((app) =>
-                  h(
-                    'div',
-                    { key: app.id, className: 'dy-dock-row' },
-                    h('span', {
-                      className: 'dy-dot',
-                      'data-status': app.status,
-                      style: {
-                        background:
-                          app.status === 'running'
-                            ? 'var(--dsw-alias-state-success-primary, #2ea043)'
-                            : app.status === 'crashed'
-                              ? 'var(--dsw-alias-state-error-primary, #f85149)'
-                              : 'var(--dsw-alias-state-idle-primary, #8b949e)',
-                      },
-                      'aria-hidden': true,
-                    }),
-                    h('span', { className: 'dy-dock-name' }, app.name),
-                    h(
-                      'span',
-                      { className: 'dy-dock-meta' },
-                      `${app.pid ? `pid ${app.pid} · ` : ''}${
-                        app.uptimeMs ? `${formatUptime(app.uptimeMs, t)} · ` : ''
-                      }${app.command}${Array.isArray(app.args) && app.args.length > 0 ? ` ${app.args.join(' ')}` : ''}`,
-                    ),
-                  ),
-                ),
+                'span',
+                { className: 'dy-res-meter', 'aria-hidden': true },
+                h('i', { className: 'dy-res-fill', style: { width: `${cpuWidth}%` } }),
               ),
-              state.warnings.length > 0
-                ? h('div', { className: 'dy-dock-hint' }, state.warnings.join(' / '))
-                : null,
-              props.openPanel
-                ? h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'dy-btn dy-dock-open',
-                      onClick: props.openPanel,
-                    },
-                    t('dockOpen'),
-                  )
-                : null,
-            )
-          : null,
-        expanded && total === 0 ? h('div', { className: 'dy-dock-hint' }, t('dockEmpty')) : null,
+              h('span', { className: 'dy-res-value' }, formatPercent(totalCpu, '—')),
+            ),
+            h(
+              'span',
+              { className: 'dy-res', title: memoryTitle },
+              h('span', { className: 'dy-res-label' }, t('dockMemory')),
+              h(
+                'span',
+                { className: 'dy-res-value' },
+                Number.isFinite(totalRss) ? formatBytes(totalRss) : '—',
+              ),
+            ),
+          ),
+          h('span', { className: 'dy-bar-sep' }),
+          h(
+            'span',
+            { className: 'dy-bar-chunk dy-bar-eco', title: ecoTitle },
+            h('span', { className: 'dy-eco-label' }, t('dockEcosystems')),
+            ...ecoTags,
+          ),
+          h('span', { className: 'dy-bar-spacer' }),
+          h(
+            'span',
+            { className: 'dy-bar-actions' },
+            openButton,
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dy-bar-icon',
+                'aria-expanded': expanded,
+                'aria-controls': 'dy-dock-detail',
+                'aria-label': t('dockDetails'),
+                title: t('dockDetails'),
+                onClick: () => setExpanded((value) => !value),
+              },
+              h('span', { className: 'dy-chevron', 'aria-hidden': true }),
+            ),
+          ),
+        ),
+        detailPanel,
       );
     }
 

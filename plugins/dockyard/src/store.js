@@ -75,22 +75,42 @@ export const APP_RUNNERS = /** @type {const} */ ([
  */
 
 /**
+ * @typedef {object} DockyardPreferences
+ * @property {boolean} statusBar 是否在输入框上方展示状态停靠条（面板里可切换）
+ */
+
+/**
  * @typedef {object} DockyardState
  * @property {number} version 状态文件的结构版本，字段语义变化时递增
  * @property {string[]} scanRoots 用户配置的扫描根目录
  * @property {Record<string, ApplicationRecord>} applications 以 id 为键的应用表
+ * @property {DockyardPreferences} preferences 界面偏好；与进程状态分开存，避免被状态推导覆盖
  * @property {number} updatedAt 最近一次写入时间
  */
 
 /** 当前状态文件结构版本。加载到更低版本时按"未知字段忽略、缺失字段补默认"处理。 */
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 4;
+
+/**
+ * 默认界面偏好。新增字段一律给默认值，旧状态文件因此不需要迁移。
+ * @returns {DockyardPreferences}
+ */
+export function defaultPreferences() {
+  return { statusBar: true };
+}
 
 /**
  * 建一个空状态。
  * @returns {DockyardState}
  */
 export function emptyState() {
-  return { version: STATE_VERSION, scanRoots: [], applications: {}, updatedAt: Date.now() };
+  return {
+    version: STATE_VERSION,
+    scanRoots: [],
+    applications: {},
+    preferences: defaultPreferences(),
+    updatedAt: Date.now(),
+  };
 }
 
 /**
@@ -138,11 +158,33 @@ export function parseState(raw) {
     }
   }
 
+  const preferences = defaultPreferences();
+  const rawPreferences = source.preferences;
+  if (rawPreferences !== undefined) {
+    if (
+      rawPreferences === null ||
+      typeof rawPreferences !== 'object' ||
+      Array.isArray(rawPreferences)
+    ) {
+      problems.push('preferences 不是对象，已使用默认偏好。');
+    } else {
+      const statusBar = /** @type {Record<string, unknown>} */ (rawPreferences).statusBar;
+      if (statusBar === undefined) {
+        // 旧版本没有这个字段，保留默认值即可，不算问题。
+      } else if (typeof statusBar === 'boolean') {
+        preferences.statusBar = statusBar;
+      } else {
+        problems.push('preferences.statusBar 不是布尔值，已使用默认值 true。');
+      }
+    }
+  }
+
   return {
     state: {
       version: STATE_VERSION,
       scanRoots,
       applications,
+      preferences,
       updatedAt: Number.isFinite(source.updatedAt) ? Number(source.updatedAt) : Date.now(),
     },
     problems,

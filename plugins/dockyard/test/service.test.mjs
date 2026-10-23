@@ -140,6 +140,38 @@ test('parseState：更高版本的状态会提示未知字段被忽略', () => {
   assert.match(problems.join('\n'), /高于本插件支持的/);
 });
 
+test('parseState：旧状态没有 preferences 时默认展示状态条', () => {
+  const { state, problems } = parseState({ version: 3, applications: {} });
+  assert.deepEqual(state.preferences, { statusBar: true });
+  assert.deepEqual(problems, []);
+
+  const bad = parseState({ version: STATE_VERSION, preferences: { statusBar: 'no' } });
+  assert.equal(bad.state.preferences.statusBar, true);
+  assert.match(bad.problems.join('\n'), /preferences\.statusBar 不是布尔值/);
+});
+
+test('状态条开关：默认展示，切换后持久化到状态文件', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-pref-'));
+  try {
+    const service = makeService(dir, []);
+    await service.init();
+    assert.equal(service.statusBarVisible, true);
+
+    assert.deepEqual(await service.setStatusBarVisible(false), { visible: false });
+    assert.equal(service.statusBarVisible, false);
+
+    // 用同一目录新建实例，读到的必须是刚才写下的选择。
+    const reloaded = makeService(dir, []);
+    await reloaded.init();
+    assert.equal(reloaded.statusBarVisible, false);
+
+    const raw = JSON.parse(await readFile(join(dir, 'state.json'), 'utf8'));
+    assert.deepEqual(raw.preferences, { statusBar: false });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('add 与 list：加入后可查到，重复加入被拒绝', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dockyard-add-'));
   try {

@@ -207,6 +207,16 @@ function requireString(value, field) {
 }
 
 /**
+ * @param {unknown} value
+ * @param {string} field
+ * @returns {boolean}
+ */
+function requireBoolean(value, field) {
+  if (typeof value !== 'boolean') throw new HttpError(400, `${field} 必须是布尔值。`);
+  return value;
+}
+
+/**
  * 校验字符串数组（去重、非空、上限）。
  * @param {unknown} value
  * @param {string} field
@@ -332,6 +342,8 @@ async function dispatchAction(service, body) {
     }
     case 'sync':
       return service.syncProjects();
+    case 'set-status-bar':
+      return service.setStatusBarVisible(requireBoolean(body.visible, 'visible'));
     default:
       throw new HttpError(400, `未知操作：${action || '(空)'}。`);
   }
@@ -366,6 +378,7 @@ export function createDockyardHandlers(service) {
           autoTakeover: service.autoTakeover === true,
           lastAutoTakeover: service.lastAutoTakeover,
           scanRoots: service.store.state.scanRoots,
+          preferences: { statusBar: service.statusBarVisible !== false },
           warnings: service.store.problems,
         });
       } catch (error) {

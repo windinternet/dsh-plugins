@@ -554,6 +554,33 @@ export class DockyardService {
   }
 
   /**
+   * 输入框上方的状态条是否展示。
+   *
+   * 默认展示：旧状态文件没有 preferences 字段时也按 true 处理，
+   * 这样升级插件不会悄悄改变用户已经看见的界面。
+   * @returns {boolean}
+   */
+  get statusBarVisible() {
+    return this.store.state.preferences?.statusBar !== false;
+  }
+
+  /**
+   * 持久化状态条开关。面板与输入框上方的 dock 读同一份状态，
+   * 因此刷新页面或重启宿主后选择仍然有效。
+   * @param {boolean} visible
+   * @returns {Promise<{ visible: boolean }>}
+   */
+  async setStatusBarVisible(visible) {
+    if (typeof visible !== 'boolean') throw new TypeError('visible 必须是布尔值。');
+    this.store.state.preferences = {
+      ...(this.store.state.preferences ?? {}),
+      statusBar: visible,
+    };
+    await this.store.save();
+    return { visible: this.statusBarVisible };
+  }
+
+  /**
    * 取得（必要时创建）某个应用的日志缓冲。
    * @param {string} appId
    * @param {string} logFile

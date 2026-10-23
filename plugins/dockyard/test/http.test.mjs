@@ -25,6 +25,11 @@ function makeService(overrides = {}) {
   const service = {
     calls,
     store: { state: { scanRoots: ['/work'] }, problems: [] },
+    statusBarVisible: true,
+    setStatusBarVisible: async (/** @type {boolean} */ visible) => {
+      calls.push(['setStatusBarVisible', visible]);
+      return { visible };
+    },
     list: async () => [{ id: 'a', name: 'A', status: 'running' }],
     listProjects: async () => [{ id: 'project:/a', name: 'A', apps: 1, running: 1 }],
     systemSnapshot: () => ({ totalmem: 1, freemem: 1, cpus: 1, loadavg: [0, 0, 0], uptime: 1 }),
@@ -222,6 +227,7 @@ test('status：返回应用、扫描根目录与诊断，且不带 CORS 头', as
   assert.equal(body.applications.length, 1);
   assert.deepEqual(body.scanRoots, ['/work']);
   assert.deepEqual(body.warnings, []);
+  assert.deepEqual(body.preferences, { statusBar: true });
   assert.equal(res.headers['access-control-allow-origin'], undefined);
 });
 
@@ -464,6 +470,37 @@ test('action：sync 触发周期同步', async () => {
   );
   assert.equal(res.statusCode, 200);
   assert.deepEqual(service.calls.at(-1), ['syncProjects']);
+});
+
+test('action：set-status-bar 只接受布尔值，并原样交给服务层', async () => {
+  const service = makeService();
+  const handlers = createDockyardHandlers(/** @type {any} */ (service));
+
+  const off = makeRes();
+  await handlers.action(
+    makeReq({
+      method: 'POST',
+      headers: ACTION_HEADERS,
+      body: { action: 'set-status-bar', visible: false },
+    }),
+    /** @type {any} */ (off),
+  );
+  assert.equal(off.statusCode, 200);
+  assert.deepEqual(service.calls.at(-1), ['setStatusBarVisible', false]);
+  assert.deepEqual(off.json().result, { visible: false });
+
+  for (const visible of ['no', 0, null]) {
+    const bad = makeRes();
+    await handlers.action(
+      makeReq({
+        method: 'POST',
+        headers: ACTION_HEADERS,
+        body: { action: 'set-status-bar', visible },
+      }),
+      /** @type {any} */ (bad),
+    );
+    assert.equal(bad.statusCode, 400);
+  }
 });
 
 test('action：相对根目录、未知动作、坏 JSON、超大体与缺字段都给出 4xx', async () => {
