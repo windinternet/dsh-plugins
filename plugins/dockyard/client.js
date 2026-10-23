@@ -203,6 +203,7 @@ window.__ModuleLoader__.load({
         dockAria: '服务坞状态',
         dockCrashed: '异常',
         dockMissing: '失联',
+        dockStopped: '已停止',
         dockRestartRequired: '需重启',
         dockProjects: '项目',
         dockCpu: 'CPU',
@@ -370,6 +371,7 @@ window.__ModuleLoader__.load({
         dockAria: 'Dockyard status',
         dockCrashed: 'crashed',
         dockMissing: 'missing',
+        dockStopped: 'stopped',
         dockRestartRequired: 'restart needed',
         dockProjects: 'projects',
         dockCpu: 'CPU',
@@ -1269,7 +1271,7 @@ window.__ModuleLoader__.load({
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   width: 100%;
   height: 40px;
   padding: 0 6px 0 14px;
@@ -1331,7 +1333,7 @@ window.__ModuleLoader__.load({
 .dy-bar-chunk { display: inline-flex; align-items: center; min-width: 0; flex: none; }
 .dy-bar-health { gap: 5px; }
 .dy-bar-scale { gap: 10px; }
-.dy-bar-res { gap: 12px; }
+.dy-bar-res { gap: 10px; flex: 1 1 auto; justify-content: space-between; }
 .dy-bar-eco { gap: 5px; flex: 0 1 auto; overflow: hidden; }
 .dy-bar-spacer { flex: 1 1 auto; min-width: 4px; }
 .dy-chip {
@@ -1339,7 +1341,7 @@ window.__ModuleLoader__.load({
   align-items: center;
   gap: 5px;
   height: 22px;
-  padding: 0 7px;
+  padding: 0 6px;
   border-radius: 999px;
   flex: none;
   white-space: nowrap;
@@ -1393,7 +1395,7 @@ window.__ModuleLoader__.load({
   font-variant-numeric: tabular-nums;
 }
 .dy-metric-label { font-size: 11px; color: var(--dsw-alias-label-tertiary, inherit); }
-.dy-res { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.dy-res { display: inline-flex; align-items: center; gap: 6px; flex: none; white-space: nowrap; }
 .dy-res-label {
   font-size: 10.5px;
   letter-spacing: 0.04em;
@@ -1456,7 +1458,7 @@ window.__ModuleLoader__.load({
   color: var(--dsw-alias-label-tertiary, inherit);
   font-variant-numeric: tabular-nums;
 }
-.dy-bar-actions { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.dy-bar-actions { display: inline-flex; align-items: center; gap: 2px; flex: none; margin-left: auto; }
 .dy-bar-btn {
   appearance: none;
   border: none;
@@ -1664,15 +1666,32 @@ window.__ModuleLoader__.load({
 }
 .dy-switch-input:disabled + .dy-switch-track { opacity: 0.5; cursor: default; }
 .dy-switch-label { white-space: nowrap; }
-/* 窄窗口按优先级舍弃低价值块：生态 → 规模 → 资源。健康状态和操作始终保留。 */
-@container (max-width: 900px) {
+/* 窄窗口逐级降级：生态先缩成"1 组 + N"，再隐藏；规模、资源继续按优先级让位。
+   稀疏时让剩余块吃掉空余宽度，避免右侧出现一片无意义的空洞。 */
+.dy-tag-eco-more-narrow { display: none; }
+.dy-chip-stopped { display: none; }
+@container (max-width: 945px) {
+  .dy-chip-stopped { display: inline-flex; }
+  .dy-tag-eco-secondary,
+  .dy-tag-eco-more-wide { display: none; }
+  .dy-tag-eco-more-narrow { display: inline-flex; }
+}
+@container (max-width: 880px) {
+  .dy-tag-eco-more-narrow { display: none; }
+}
+@container (max-width: 850px) {
+  .dy-chip-stopped { display: none; }
+}
+@container (max-width: 800px) {
   .dy-bar-eco { display: none; }
+  .dy-chip-stopped { display: inline-flex; }
 }
 @container (max-width: 760px) {
   .dy-bar-scale { display: none; }
 }
 @container (max-width: 640px) {
   .dy-bar-res { display: none; }
+  .dy-bar-health { flex: 1 1 auto; justify-content: space-between; }
 }
 `;
 
@@ -4379,6 +4398,7 @@ window.__ModuleLoader__.load({
       const runningApps = apps.filter((app) => app.status === 'running');
       const crashedApps = apps.filter((app) => app.status === 'crashed');
       const missingApps = apps.filter((app) => app.missing === true);
+      const stoppedCount = apps.filter((app) => app.status === 'stopped').length;
       const runningCount = runningApps.length;
       const crashedCount = crashedApps.length;
       const missingCount = missingApps.length;
@@ -4650,12 +4670,13 @@ window.__ModuleLoader__.load({
         );
       };
 
-      const ecoTags = shownEcosystems.map((group) =>
+      const ecoTags = shownEcosystems.map((group, index) =>
         h(
           'span',
           {
             key: group.key,
-            className: 'dy-tag-eco',
+            // 第二组在窄容器里会被 CSS 隐藏；+N 另有一份只覆盖"第一组之外"的计数。
+            className: index === 0 ? 'dy-tag-eco' : 'dy-tag-eco dy-tag-eco-secondary',
             title: `${group.language}${group.manager ? ` · ${group.manager}` : ''} · ${group.count}`,
           },
           h('b', null, group.language),
@@ -4667,8 +4688,25 @@ window.__ModuleLoader__.load({
         ecoTags.push(
           h(
             'span',
-            { key: 'dock-eco-more', className: 'dy-tag-eco dy-tag-eco-more', title: ecoTitle },
+            {
+              key: 'dock-eco-more-wide',
+              className: 'dy-tag-eco dy-tag-eco-more dy-tag-eco-more-wide',
+              title: ecoTitle,
+            },
             `+${hiddenEcosystems}`,
+          ),
+        );
+      }
+      if (ecosystems.length > 1) {
+        ecoTags.push(
+          h(
+            'span',
+            {
+              key: 'dock-eco-more-narrow',
+              className: 'dy-tag-eco dy-tag-eco-more dy-tag-eco-more-narrow',
+              title: ecoTitle,
+            },
+            `+${ecosystems.length - 1}`,
           ),
         );
       }
@@ -4746,6 +4784,14 @@ window.__ModuleLoader__.load({
                     .join('、'),
                 )
               : null,
+            stoppedCount > 0
+              ? h(
+                  'span',
+                  { className: 'dy-chip dy-chip-stopped', 'data-tone': 'neutral' },
+                  h('span', { className: 'dy-chip-dot', 'aria-hidden': true }),
+                  h('span', null, `${stoppedCount} ${t('dockStopped')}`),
+                )
+              : null,
             errorPhase ? chip('error', t('dockUnavailable'), state.error) : null,
           ),
           h('span', { className: 'dy-bar-sep' }),
@@ -4787,7 +4833,6 @@ window.__ModuleLoader__.load({
             h('span', { className: 'dy-eco-label' }, t('dockEcosystems')),
             ...ecoTags,
           ),
-          h('span', { className: 'dy-bar-spacer' }),
           h(
             'span',
             { className: 'dy-bar-actions' },
