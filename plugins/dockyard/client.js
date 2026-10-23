@@ -1430,7 +1430,7 @@ window.__ModuleLoader__.load({
 }
 .dy-tag-eco {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 4px;
   height: 22px;
   padding: 0 6px;
@@ -1438,17 +1438,16 @@ window.__ModuleLoader__.load({
   flex: none;
   white-space: nowrap;
   font-size: 11px;
+  line-height: 1;
   background: var(--dsw-alias-interactive-bg-hover, transparent);
   color: var(--dsw-alias-label-secondary, inherit);
 }
 .dy-tag-eco b { font-weight: 600; color: var(--dsw-alias-label-primary, inherit); }
 .dy-tag-eco em {
   font-style: normal;
-  font-size: 10.5px;
   color: var(--dsw-alias-label-tertiary, inherit);
 }
 .dy-tag-eco-count {
-  font-size: 10.5px;
   color: var(--dsw-alias-label-tertiary, inherit);
   font-variant-numeric: tabular-nums;
 }
