@@ -343,6 +343,19 @@ async function dispatchAction(service, body) {
     }
     case 'sync':
       return service.syncProjects();
+    case 'set-app-port': {
+      const id = requireString(body.id, 'id');
+      const port = Number(body.port);
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        throw new HttpError(400, 'port 必须是 1..65535 之间的整数。');
+      }
+      try {
+        return await service.setAppPreferredPort(id, port);
+      } catch (error) {
+        if (error instanceof TypeError) throw new HttpError(400, error.message);
+        throw error;
+      }
+    }
     case 'set-guard-policy': {
       const policy = body.policy;
       if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {

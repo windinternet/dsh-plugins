@@ -105,6 +105,73 @@ export function parseLsofPorts(text) {
 }
 
 /**
+ * 解析 `ps -axo pid=,pgid=` 的输出为 pid → 进程组。
+ * @param {string} text
+ * @returns {Map<number, number>}
+ */
+export function parsePsGroups(text) {
+  /** @type {Map<number, number>} */
+  const map = new Map();
+  for (const line of text.split('\n')) {
+    const match = line.trim().match(/^(\d+)\s+(\d+)$/);
+    if (match) map.set(Number(match[1]), Number(match[2]));
+  }
+  return map;
+}
+
+/**
+ * 按进程组汇总监听端口。dockyard 启动的应用在独立进程组里，启动器 pid 就是组 id，
+ * 因此可以用一个应用一条记录的方式拿到它整棵树的端口。
+ * @param {{ platform?: NodeJS.Platform }} [options]
+ * @returns {Promise<{ groups: Map<number, number[]>, error: string }>}
+ */
+export async function listListeningPorts(options = {}) {
+  const platform = options.platform ?? process.platform;
+  if (platform !== 'darwin' && platform !== 'linux') {
+    return { groups: new Map(), error: `当前平台 ${platform} 暂不支持端口发现。` };
+  }
+  const psCommand = platform === 'darwin' ? '/bin/ps' : 'ps';
+  const lsofCommand = platform === 'darwin' ? '/usr/sbin/lsof' : 'lsof';
+  let psText;
+  let portsText;
+  try {
+    const [psResult, portsResult] = await Promise.all([
+      execFileAsync(psCommand, ['-axo', 'pid=,pgid='], {
+        timeout: 3000,
+        maxBuffer: 8 * 1024 * 1024,
+        encoding: 'utf8',
+      }),
+      execFileAsync(lsofCommand, ['-nP', '-iTCP', '-sTCP:LISTEN', '-Fn'], {
+        timeout: 3000,
+        maxBuffer: 8 * 1024 * 1024,
+        encoding: 'utf8',
+      }),
+    ]);
+    psText = String(psResult.stdout);
+    portsText = String(portsResult.stdout);
+  } catch (error) {
+    return {
+      groups: new Map(),
+      error: `无法枚举监听端口：${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  const pgidByPid = parsePsGroups(psText);
+  const portsByPid = parseLsofPorts(portsText);
+  /** @type {Map<number, number[]>} */
+  const groups = new Map();
+  for (const [pid, ports] of portsByPid) {
+    const pgid = pgidByPid.get(pid) ?? pid;
+    const current = groups.get(pgid) ?? [];
+    for (const port of ports) {
+      if (!current.includes(port)) current.push(port);
+    }
+    groups.set(pgid, current);
+  }
+  for (const ports of groups.values()) ports.sort((a, b) => a - b);
+  return { groups, error: '' };
+}
+
+/**
  * 判断是否像长期运行的服务进程。仅按 cwd 匹配会把用户“停在项目目录里的终端”
  * 也算进来，接管时误杀。这里要求命令像服务启动器，或者进程正在监听端口。
  * @param {string} command

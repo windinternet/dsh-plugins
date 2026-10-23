@@ -1339,3 +1339,46 @@ test('外部进程扫描：状态里仍运行的 pid 也会被排除', async () 
     await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 });
+
+test('访问端口：按进程组聚合监听端口，并记住偏好端口', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-ports-'));
+  try {
+    const service = new DockyardService({
+      dataDir: dir,
+      metricsIntervalMs: 0,
+      syncIntervalMs: 0,
+      portLister: async () => ({
+        groups: new Map([[process.pid, [4000, 4001]]]),
+        error: '',
+      }),
+    });
+    await service.init();
+    await service.add({
+      id: 'node:ports:dev',
+      name: 'ports-app',
+      dir,
+      runner: 'node',
+      command: process.execPath,
+      args: [],
+      reason: 'test',
+      projectId: 'project:/p',
+      projectName: 'p',
+      projectRoot: dir,
+    });
+    const record = service.store.get('node:ports:dev');
+    assert.ok(record);
+    record.status = 'running';
+    record.pid = process.pid;
+    service.processes.set('node:ports:dev', /** @type {any} */ ({ pid: process.pid }));
+
+    const app = pick(await service.list(), 'node:ports:dev');
+    assert.deepEqual(app.ports, [4000, 4001]);
+    assert.equal(app.preferredPort, undefined);
+
+    await service.setAppPreferredPort('node:ports:dev', 4001);
+    const updated = pick(await service.list(), 'node:ports:dev');
+    assert.equal(updated.preferredPort, 4001);
+  } finally {
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});

@@ -289,6 +289,9 @@ window.__ModuleLoader__.load({
         externalPorts: '端口 {ports}',
         takeoverApp: '接管',
         externalRestartHint: '停止外部进程，再由 dockyard 重启（即接管）。',
+        openApp: '访问',
+        openAppHint: '在浏览器打开 {url}',
+        portSelect: '访问端口',
         guardSettings: '保活设置',
         guardSettingsTitle: '保活与重试策略',
         guardSettingsHint:
@@ -600,6 +603,9 @@ window.__ModuleLoader__.load({
         externalPorts: 'port {ports}',
         takeoverApp: 'Take over',
         externalRestartHint: 'Stop the external process and restart it under dockyard (takeover).',
+        openApp: 'Open',
+        openAppHint: 'Open {url} in the browser',
+        portSelect: 'Port',
         guardSettings: 'Keep-alive settings',
         guardSettingsTitle: 'Keep-alive & retry policy',
         guardSettingsHint:
@@ -1551,6 +1557,7 @@ window.__ModuleLoader__.load({
   padding: 6px 8px;
 }
 .dy-select:focus { outline: 2px solid var(--dsw-alias-brand-primary, currentColor); outline-offset: -1px; }
+.dy-port-select { width: 124px; }
 .dy-logs {
   margin: 0;
   padding: 12px 14px;
@@ -5099,6 +5106,7 @@ window.__ModuleLoader__.load({
         externalError,
         guardPolicy,
         onOpenGuardSettings,
+        onSelectPort,
       } = props;
       const apps = status.applications;
       /** 托管应用 + 能匹配回应用的外部进程，合成同一条应用列表。 */
@@ -5243,6 +5251,43 @@ window.__ModuleLoader__.load({
         const command = `${app.command ?? ''} ${
           Array.isArray(app.args) ? app.args.join(' ') : ''
         }`.trim();
+        const ports = Array.isArray(app.ports)
+          ? [...new Set(app.ports.filter((port) => Number.isInteger(port)))].sort((a, b) => a - b)
+          : [];
+        const selectedPort = ports.includes(app.preferredPort) ? app.preferredPort : ports[0];
+        const openUrl = selectedPort ? `http://localhost:${selectedPort}` : '';
+        const accessActions =
+          running && ports.length > 0
+            ? h(
+                React.Fragment,
+                null,
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'dy-btn dy-btn-primary',
+                    title: format(t('openAppHint'), { url: openUrl }),
+                    onClick: () => window.open(openUrl, '_blank', 'noopener,noreferrer'),
+                  },
+                  t('openApp'),
+                ),
+                ports.length > 1
+                  ? h(
+                      'select',
+                      {
+                        className: 'dy-select dy-port-select',
+                        'aria-label': t('portSelect'),
+                        title: t('portSelect'),
+                        value: String(selectedPort),
+                        onChange: (event) => onSelectPort(app.id, Number(event.target.value)),
+                      },
+                      ports.map((port) =>
+                        h('option', { key: port, value: String(port) }, `localhost:${port}`),
+                      ),
+                    )
+                  : null,
+              )
+            : null;
         return h(
           'div',
           { key: app.id, className: 'dy-svc-row' },
@@ -5346,6 +5391,7 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'dy-svc-row-actions' },
+            accessActions,
             !managed
               ? h(
                   React.Fragment,
@@ -6876,6 +6922,18 @@ window.__ModuleLoader__.load({
         }
       }, [guardDraft, loadStatus, t]);
 
+      const selectAppPort = React.useCallback(
+        async (id, port) => {
+          try {
+            await postAction('set-app-port', { id, port });
+            await loadStatus();
+          } catch (error) {
+            setNotice({ kind: 'error', text: messageOf(error) });
+          }
+        },
+        [loadStatus],
+      );
+
       const removeProject = React.useCallback(
         async (projectId) => {
           setBusy(`remove-project:${projectId}`);
@@ -7141,6 +7199,7 @@ window.__ModuleLoader__.load({
           externalError: status.externalError,
           guardPolicy: status.guardPolicy,
           onOpenGuardSettings: openGuardSettings,
+          onSelectPort: selectAppPort,
           onLogs: openLogModal,
           onDiscover: () => setTab('discover'),
           query,

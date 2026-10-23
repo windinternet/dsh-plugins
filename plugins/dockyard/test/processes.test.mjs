@@ -5,6 +5,7 @@ import {
   parseLsofPorts,
   isServiceLikeProcess,
   parsePsProcesses,
+  parsePsGroups,
   terminateExternalProcess,
 } from '../src/processes.js';
 
@@ -24,6 +25,13 @@ test('parsePsProcesses：解析 pid/父进程/进程组/CPU/RSS/命令', () => {
     rssBytes: 2048 * 1024,
     command: 'node server.js --port 3000',
   });
+});
+
+test('parsePsGroups：pid → 进程组', () => {
+  const groups = parsePsGroups('  100   100\n  101   100\n  bad\n');
+  assert.equal(groups.get(100), 100);
+  assert.equal(groups.get(101), 100);
+  assert.equal(groups.size, 2);
 });
 
 test('parseLsofCwd / parseLsofPorts：按 pid 聚合 cwd 与监听端口', () => {

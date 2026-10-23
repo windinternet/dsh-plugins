@@ -22,7 +22,11 @@ import {
 import { readTail } from './internal/log-buffer.js';
 import { StateStore, defaultGuardPolicy } from './store.js';
 import { sampleProcessGroup } from './metrics.js';
-import { listExternalProcesses, terminateExternalProcess } from './processes.js';
+import {
+  listExternalProcesses,
+  listListeningPorts,
+  terminateExternalProcess,
+} from './processes.js';
 
 /** 独立启动器：应用由它托管，DSH/插件退出后它继续运行。 */
 const APP_LAUNCHER = fileURLToPath(new URL('./internal/app-launcher.mjs', import.meta.url));
@@ -65,6 +69,7 @@ export class DockyardService {
    * @param {(pid: number) => Promise<import('./metrics.js').ProcessMetrics | null>} [options.sampleProcessImpl]
    *   可替换的采样实现，便于测试。
    * @param {typeof listExternalProcesses} [options.processLister] 可替换的外部进程枚举实现。
+   * @param {typeof listListeningPorts} [options.portLister] 可替换的监听端口枚举实现。
    * @param {typeof terminateExternalProcess} [options.terminateImpl] 可替换的进程终止实现。
    * @param {number} [options.syncIntervalMs] 周期同步间隔；0 表示关闭（测试用）。
    * @param {boolean} [options.syncOnStart] 启动后是否立即做一次同步。
@@ -76,6 +81,7 @@ export class DockyardService {
     metricsIntervalMs = 5000,
     sampleProcessImpl = sampleProcessGroup,
     processLister = listExternalProcesses,
+    portLister = listListeningPorts,
     terminateImpl = terminateExternalProcess,
     syncIntervalMs = 5 * 60 * 1000,
     syncOnStart = true,
@@ -87,6 +93,7 @@ export class DockyardService {
     this.metricsIntervalMs = metricsIntervalMs;
     this.sampleProcessImpl = sampleProcessImpl;
     this.processLister = processLister;
+    this.portLister = portLister;
     this.terminateImpl = terminateImpl;
     this.syncIntervalMs = syncIntervalMs;
     this.syncOnStart = syncOnStart;
@@ -115,6 +122,8 @@ export class DockyardService {
      * @type {null | { at: number, value: { apps: any[], unmatched: number, error: string } }}
      */
     this.externalAppsCache = null;
+    /** @type {{ at: number, groups: Map<number, number[]>, error: string }} 监听端口缓存 */
+    this.portCache = { at: 0, groups: new Map(), error: '' };
     /** @type {Map<string, ReturnType<typeof setTimeout>>} 守护重试定时器 */
     this.guardTimers = new Map();
     /** @type {ReturnType<typeof setInterval> | null} */
@@ -737,15 +746,58 @@ export class DockyardService {
   }
 
   /**
+   * 刷新托管应用的监听端口缓存。按进程组聚合，一次 ps + lsof 覆盖全部应用。
+   * @returns {Promise<{ at: number, groups: Map<number, number[]>, error: string }>}
+   */
+  async #refreshAppPorts() {
+    const now = Date.now();
+    if (now - this.portCache.at < 3000) return this.portCache;
+    try {
+      const result = await this.portLister();
+      this.portCache = {
+        at: Date.now(),
+        groups: result.groups instanceof Map ? result.groups : new Map(),
+        error: result.error ?? '',
+      };
+    } catch (error) {
+      this.portCache = {
+        at: Date.now(),
+        groups: new Map(),
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+    return this.portCache;
+  }
+
+  /**
+   * 记住某个应用偏好的访问端口；只影响访问按钮，不影响进程。
+   * @param {string} id
+   * @param {number} port
+   * @returns {Promise<{ id: string, port: number }>}
+   */
+  async setAppPreferredPort(id, port) {
+    if (!this.store.get(id)) throw new TypeError(`没有 id 为 ${id} 的应用。`);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new TypeError('port 必须是 1..65535 之间的整数。');
+    }
+    this.store.state.appPorts ??= {};
+    this.store.state.appPorts[id] = port;
+    await this.store.save();
+    return { id, port };
+  }
+
+  /**
    * 列出全部应用，并补上"进程是否真的还在"这一层事实。
    *
    * 这里刻意不信任记录里的状态：记录说 running，但进程可能已经消失。
    * 以实际探测为准，并把发现写回记录，避免状态永久失真。
    *
-   * @returns {Promise<{ id: string, name: string, dir: string, command: string, args: string[], status: string, statusReason: string, pid?: number, uptimeMs?: number, projectId?: string, projectName?: string, projectRoot?: string, ecosystemId?: string, ecosystemName?: string, language?: string, manager?: string, missing?: boolean, missingAt?: number, lastSeenAt?: number, restartRequired?: boolean, cpuPercent?: number, rssBytes?: number, processCount?: number, metricsAt?: number }[]>}
+   * @returns {Promise<{ id: string, name: string, dir: string, command: string, args: string[], status: string, statusReason: string, pid?: number, uptimeMs?: number, projectId?: string, projectName?: string, projectRoot?: string, ecosystemId?: string, ecosystemName?: string, language?: string, manager?: string, missing?: boolean, missingAt?: number, lastSeenAt?: number, restartRequired?: boolean, cpuPercent?: number, rssBytes?: number, processCount?: number, metricsAt?: number, ports?: number[], preferredPort?: number }[]>}
    */
   async list() {
     const records = this.store.list();
+    const hasHandles = records.some((record) => this.processes.has(record.id));
+    if (hasHandles) await this.#refreshAppPorts();
     let changed = false;
 
     const out = records.map((record) => {
@@ -773,6 +825,8 @@ export class DockyardService {
         processCount:
           record.status === 'running' ? this.metrics.get(record.id)?.processCount : undefined,
         metricsAt: record.status === 'running' ? this.metrics.get(record.id)?.at : undefined,
+        ports: handle ? (this.portCache.groups.get(handle.pid) ?? []) : [],
+        preferredPort: this.store.state.appPorts?.[record.id],
         guard: record.guard,
         projectId: record.projectId,
         projectName: record.projectName,
@@ -934,6 +988,7 @@ export class DockyardService {
     const matched = matchExternalApps(records, result.processes);
     const apps = matched.apps.map((app) => ({
       ...app,
+      preferredPort: this.store.state.appPorts?.[app.id],
       stopProcesses: collectStopProcesses(app.processes, result.processes, app.projectRoot),
     }));
     const value = { apps, unmatched: matched.unmatched.length, error: '' };

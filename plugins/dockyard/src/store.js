@@ -107,6 +107,7 @@ export const APP_RUNNERS = /** @type {const} */ ([
  * @property {Record<string, ApplicationRecord>} applications 以 id 为键的应用表
  * @property {DockyardPreferences} preferences 界面偏好；与进程状态分开存，避免被状态推导覆盖
  * @property {GuardPolicy} guardPolicy 保活/退避策略；与进程状态分开存
+ * @property {Record<string, number>} appPorts 每个应用偏好的访问端口
  * @property {number} updatedAt 最近一次写入时间
  */
 
@@ -186,6 +187,7 @@ export function emptyState() {
     applications: {},
     preferences: defaultPreferences(),
     guardPolicy: defaultGuardPolicy(),
+    appPorts: {},
     updatedAt: Date.now(),
   };
 }
@@ -257,6 +259,23 @@ export function parseState(raw) {
   }
 
   const guardPolicy = normalizeGuardPolicy(source.guardPolicy, problems);
+  /** @type {Record<string, number>} */
+  const appPorts = {};
+  if (source.appPorts !== undefined) {
+    if (
+      source.appPorts === null ||
+      typeof source.appPorts !== 'object' ||
+      Array.isArray(source.appPorts)
+    ) {
+      problems.push('appPorts 不是对象，已忽略。');
+    } else {
+      for (const [id, value] of Object.entries(source.appPorts)) {
+        if (Number.isInteger(value) && Number(value) > 0 && Number(value) <= 65535) {
+          appPorts[id] = Number(value);
+        }
+      }
+    }
+  }
 
   return {
     state: {
@@ -265,6 +284,7 @@ export function parseState(raw) {
       applications,
       preferences,
       guardPolicy,
+      appPorts,
       updatedAt: Number.isFinite(source.updatedAt) ? Number(source.updatedAt) : Date.now(),
     },
     problems,

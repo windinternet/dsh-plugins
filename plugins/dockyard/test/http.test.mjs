@@ -158,6 +158,10 @@ function makeService(overrides = {}) {
       backoffMaxMs: 60000,
       resetAfterMs: 60000,
     },
+    setAppPreferredPort: async (/** @type {string} */ id, /** @type {number} */ port) => {
+      calls.push(['setAppPreferredPort', id, port]);
+      return { id, port };
+    },
     setGuardPolicy: async (/** @type {any} */ patch) => {
       if (typeof patch.enabled !== 'boolean') throw new TypeError('enabled 必须是布尔值。');
       calls.push(['setGuardPolicy', patch]);
@@ -544,6 +548,34 @@ test('action：set-guard-policy 校验并保存策略', async () => {
       method: 'POST',
       headers: ACTION_HEADERS,
       body: { action: 'set-guard-policy', policy: { maxRetries: 3 } },
+    }),
+    /** @type {any} */ (bad),
+  );
+  assert.equal(bad.statusCode, 400);
+});
+
+test('action：set-app-port 校验端口并保存', async () => {
+  const service = makeService();
+  const handlers = createDockyardHandlers(/** @type {any} */ (service));
+
+  const ok = makeRes();
+  await handlers.action(
+    makeReq({
+      method: 'POST',
+      headers: ACTION_HEADERS,
+      body: { action: 'set-app-port', id: 'a', port: 4000 },
+    }),
+    /** @type {any} */ (ok),
+  );
+  assert.equal(ok.statusCode, 200);
+  assert.deepEqual(service.calls.at(-1), ['setAppPreferredPort', 'a', 4000]);
+
+  const bad = makeRes();
+  await handlers.action(
+    makeReq({
+      method: 'POST',
+      headers: ACTION_HEADERS,
+      body: { action: 'set-app-port', id: 'a', port: 70000 },
     }),
     /** @type {any} */ (bad),
   );
