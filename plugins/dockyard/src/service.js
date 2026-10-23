@@ -907,10 +907,24 @@ export class DockyardService {
       return value;
     }
 
-    const managedPids = [...this.processes.values()]
-      .map((handle) => handle.pid)
-      .filter((pid) => Number.isInteger(pid));
-    const result = await this.processLister({ roots, managedPids });
+    // 除了当前进程句柄，也把状态里仍标记为运行/启动/停止中的 pid 算进来。
+    // 插件热重载后 in-memory 句柄可能丢失，但这些 pid 仍是我们启动的启动器；
+    // 不排除它们就会把同一个应用树误判成外部进程（托管/非托管来回跳）。
+    const managedPids = new Set();
+    for (const handle of this.processes.values()) {
+      if (Number.isInteger(handle.pid)) managedPids.add(handle.pid);
+    }
+    for (const record of this.store.list()) {
+      if (
+        Number.isInteger(record.pid) &&
+        (record.status === 'running' ||
+          record.status === 'starting' ||
+          record.status === 'stopping')
+      ) {
+        managedPids.add(record.pid);
+      }
+    }
+    const result = await this.processLister({ roots, managedPids: [...managedPids] });
     if (result.error) {
       const value = { apps: [], unmatched: 0, error: result.error };
       this.externalAppsCache = { at: now, value };

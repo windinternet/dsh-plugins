@@ -1300,3 +1300,42 @@ test('加载状态：宿主重启后暂停守护，绝不自动启动', async ()
     await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 });
+
+test('外部进程扫描：状态里仍运行的 pid 也会被排除', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-managed-pids-'));
+  try {
+    /** @type {number[]} */
+    let seenManagedPids = [];
+    const service = new DockyardService({
+      dataDir: dir,
+      metricsIntervalMs: 0,
+      syncIntervalMs: 0,
+      processLister: async (/** @type {any} */ options) => {
+        seenManagedPids = options.managedPids;
+        return { processes: [], error: '' };
+      },
+    });
+    await service.init();
+    await service.add({
+      id: 'node:managed-pid:dev',
+      name: 'managed-pid',
+      dir,
+      runner: 'node',
+      command: process.execPath,
+      args: [],
+      reason: 'test',
+      projectId: 'project:/p',
+      projectName: 'p',
+      projectRoot: dir,
+    });
+    const record = service.store.get('node:managed-pid:dev');
+    assert.ok(record);
+    record.status = 'running';
+    record.pid = 4242;
+
+    await service.listExternalApps({ fresh: true });
+    assert.ok(seenManagedPids.includes(4242), '状态里的运行 pid 必须传给外部进程扫描');
+  } finally {
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});
