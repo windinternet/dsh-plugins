@@ -7534,7 +7534,20 @@ window.__ModuleLoader__.load({
       // 用户在服务坞页头关掉状态条时，这里连 style 都不注入，输入框上方不留空隙。
       if (state.preferences.statusBar === false) return null;
 
-      const apps = state.applications;
+      // 状态条也必须把非托管应用算进来；只拿 applications 会出现"概览有、状态条没有"。
+      const managedApps = Array.isArray(state.applications) ? state.applications : [];
+      const externalApps = Array.isArray(state.externalApps) ? state.externalApps : [];
+      const byId = new Map(managedApps.map((app) => [app.id, app]));
+      for (const external of externalApps) {
+        if (!external || typeof external.id !== 'string') continue;
+        const existing = byId.get(external.id);
+        if (!existing) {
+          byId.set(external.id, { ...external, status: 'running', managed: false });
+        } else if (existing.status !== 'running' && external.status === 'running') {
+          byId.set(external.id, { ...external, status: 'running', managed: false });
+        }
+      }
+      const apps = [...byId.values()];
       const total = apps.length;
       const runningApps = apps.filter((app) => app.status === 'running');
       const crashedApps = apps.filter((app) => app.status === 'crashed');
@@ -7555,9 +7568,11 @@ window.__ModuleLoader__.load({
             : undefined;
       const totalRss =
         runningCount === 0 ? 0 : rssSamples.length > 0 ? sumOf(rssSamples, 'rssBytes') : undefined;
-      const projectCount = Array.isArray(state.projects)
-        ? state.projects.length
-        : new Set(apps.map((app) => app.projectId ?? app.projectRoot ?? app.id)).size;
+      const projectKeys = new Set(
+        (Array.isArray(state.projects) ? state.projects : []).map((project) => project.id),
+      );
+      for (const app of apps) projectKeys.add(app.projectId ?? app.projectRoot ?? app.id);
+      const projectCount = projectKeys.size;
       const ecosystems = ecosystemGroups(apps, t);
       const shownEcosystems = ecosystems.slice(0, 2);
       const hiddenEcosystems = ecosystems.length - shownEcosystems.length;
