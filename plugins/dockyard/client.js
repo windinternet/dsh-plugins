@@ -275,6 +275,18 @@ window.__ModuleLoader__.load({
         externalCount: '{count} 个外部进程',
         externalHint:
           '检测到不是 dockyard 启动的进程。接管会先停止它们，再由 dockyard 启动项目应用。',
+        managedBadge: '托管',
+        unmanagedBadge: '非托管',
+        externalRunning: '外部运行',
+        externalPorts: '端口 {ports}',
+        takeoverApp: '接管',
+        externalRestartHint: '停止外部进程，再由 dockyard 重启（即接管）。',
+        takeoverAll: '一键接管',
+        takeoverAllCount: '一键接管（{count}）',
+        filterUnmanaged: '非托管',
+        externalAppsHint:
+          '外部启动的应用只能读取状态、CPU/内存和端口；接管后由 dockyard 重启，才能采集日志。',
+        externalUnmatchedCount: '未识别外部进程 {count}',
         takeoverProject: '接管项目',
         takingOver: '接管中…',
         projectGit: 'git',
@@ -288,9 +300,6 @@ window.__ModuleLoader__.load({
         syncSummary: '上次同步：新增 {added}，变化 {changed}，失联 {missing}',
         missingBadge: '失联',
         restartRequiredBadge: '需重启',
-        autoTakeoverOn: '自动接管：开',
-        autoTakeoverOff: '自动接管：关',
-        autoTakenOver: '上次自动接管：{name}',
         logsApp: '服务',
         logsLines: '行数',
         logsSource: '来源',
@@ -557,6 +566,18 @@ window.__ModuleLoader__.load({
         externalCount: '{count} external processes',
         externalHint:
           'Processes not started by dockyard were found. Takeover stops them first, then starts the project apps under dockyard.',
+        managedBadge: 'Managed',
+        unmanagedBadge: 'Unmanaged',
+        externalRunning: 'External',
+        externalPorts: 'port {ports}',
+        takeoverApp: 'Take over',
+        externalRestartHint: 'Stop the external process and restart it under dockyard (takeover).',
+        takeoverAll: 'Take over all',
+        takeoverAllCount: 'Take over all ({count})',
+        filterUnmanaged: 'Unmanaged',
+        externalAppsHint:
+          'Externally started apps expose status, CPU/memory and ports only. Take over to restart under dockyard and capture logs.',
+        externalUnmatchedCount: 'Unmatched external processes {count}',
         takeoverProject: 'Take over',
         takingOver: 'Taking over…',
         projectGit: 'git',
@@ -570,9 +591,6 @@ window.__ModuleLoader__.load({
         syncSummary: 'Last sync: +{added}, changed {changed}, missing {missing}',
         missingBadge: 'Missing',
         restartRequiredBadge: 'Restart required',
-        autoTakeoverOn: 'Auto takeover: on',
-        autoTakeoverOff: 'Auto takeover: off',
-        autoTakenOver: 'Last auto takeover: {name}',
         logsApp: 'Service',
         logsLines: 'Lines',
         logsSource: 'Source',
@@ -715,7 +733,7 @@ window.__ModuleLoader__.load({
     /**
      * 读一次状态快照。
      * @param {AbortSignal} [signal]
-     * @returns {Promise<{ generatedAt: number, applications: any[], projects: any[], system: any, resourceHistory: { at: number, cpuPercent: number, rssBytes: number }[], preferences: { statusBar: boolean }, warnings: string[], scanRoots: string[] }>}
+     * @returns {Promise<{ generatedAt: number, applications: any[], externalApps: any[], externalUnmatched: number, externalError: string, projects: any[], system: any, resourceHistory: { at: number, cpuPercent: number, rssBytes: number }[], preferences: { statusBar: boolean }, warnings: string[], scanRoots: string[] }>}
      */
     async function fetchStatus(signal) {
       const response = await fetch(STATUS_ROUTE, {
@@ -732,6 +750,9 @@ window.__ModuleLoader__.load({
       return {
         generatedAt: Number(body.generatedAt) || Date.now(),
         applications: Array.isArray(body.applications) ? body.applications : [],
+        externalApps: Array.isArray(body.externalApps) ? body.externalApps : [],
+        externalUnmatched: Number(body.externalUnmatched) || 0,
+        externalError: typeof body.externalError === 'string' ? body.externalError : '',
         projects: Array.isArray(body.projects) ? body.projects : [],
         system: body.system && typeof body.system === 'object' ? body.system : null,
         // 旧 Host 没有趋势聚合字段时给空数组，趋势卡显示"暂无采样"而不是伪造曲线。
@@ -760,11 +781,6 @@ window.__ModuleLoader__.load({
         },
         sync: body.sync && typeof body.sync === 'object' ? body.sync : null,
         syncIntervalMs: Number(body.syncIntervalMs) || 0,
-        autoTakeover: body.autoTakeover === true,
-        lastAutoTakeover:
-          body.lastAutoTakeover && typeof body.lastAutoTakeover === 'object'
-            ? body.lastAutoTakeover
-            : null,
         warnings: Array.isArray(body.warnings) ? body.warnings : [],
         scanRoots: Array.isArray(body.scanRoots) ? body.scanRoots : [],
       };
@@ -5013,12 +5029,18 @@ window.__ModuleLoader__.load({
         setLanguageFilter,
         sync,
         onSync,
-        autoTakeover,
-        lastAutoTakeover,
-        external,
-        onTakeoverHosted,
+        onTakeoverAll,
+        onTakeoverProject,
+        externalUnmatched,
+        externalError,
       } = props;
       const apps = status.applications;
+      /** 托管应用 + 能匹配回应用的外部进程，合成同一条应用列表。 */
+      const managedApps = apps.map((app) => ({ ...app, managed: true }));
+      const externalApps = (status.externalApps ?? []).map((app) => ({ ...app, managed: false }));
+      const appById = new Map(managedApps.map((app) => [app.id, app]));
+      for (const app of externalApps) appById.set(app.id, app);
+      const allApps = [...appById.values()];
 
       if (status.phase === 'loading' && apps.length === 0) {
         return h(EmptyState, { title: t('loading') });
@@ -5036,7 +5058,7 @@ window.__ModuleLoader__.load({
 
       /** @type {Map<string, { key: string, name: string, root: string, apps: any[] }>} */
       const groups = new Map();
-      for (const app of apps) {
+      for (const app of allApps) {
         const key = app.projectId ?? 'unclassified';
         let group = groups.get(key);
         if (!group) {
@@ -5109,8 +5131,9 @@ window.__ModuleLoader__.load({
        * @param {any} app
        */
       function renderRow(app) {
+        const managed = app.managed !== false;
         const running = isActive(app);
-        const removeOpen = confirmRemove === app.id;
+        const removeOpen = managed && confirmRemove === app.id;
         const command = `${app.command ?? ''} ${
           Array.isArray(app.args) ? app.args.join(' ') : ''
         }`.trim();
@@ -5124,6 +5147,14 @@ window.__ModuleLoader__.load({
               'div',
               { className: 'dy-svc-row-title' },
               h('span', { className: 'dy-service-name' }, app.name),
+              h(
+                'span',
+                {
+                  className: `dy-badge ${managed ? 'dy-badge-ok' : 'dy-badge-warn'}`,
+                  title: managed ? t('managedBadge') : t('externalAppsHint'),
+                },
+                managed ? t('managedBadge') : t('unmanagedBadge'),
+              ),
               ...renderAppTags(app),
               app.missing
                 ? h('span', { className: 'dy-badge dy-badge-danger' }, t('missingBadge'))
@@ -5138,6 +5169,18 @@ window.__ModuleLoader__.load({
               h('span', { className: 'dy-mono', title: command }, command || t('never')),
               h('span', { className: 'dy-svc-row-sep' }, '·'),
               h('span', { className: 'dy-mono', title: app.dir }, app.dir),
+              !managed && Array.isArray(app.ports) && app.ports.length > 0
+                ? h(
+                    React.Fragment,
+                    null,
+                    h('span', { className: 'dy-svc-row-sep' }, '·'),
+                    h(
+                      'span',
+                      { className: 'dy-mono' },
+                      format(t('externalPorts'), { ports: app.ports.join(', ') }),
+                    ),
+                  )
+                : null,
             ),
             running
               ? h(
@@ -5159,14 +5202,21 @@ window.__ModuleLoader__.load({
               : null,
             /** 只有异常/过渡态才需要解释；"已加入管理列表，尚未启动。"这种
              * 恒定文案挂在 152 行上是纯噪音，状态本身已经说清了。 */
-            app.statusReason && app.status !== 'stopped'
+            managed && app.statusReason && app.status !== 'stopped'
               ? h('div', { className: 'dy-service-reason' }, app.statusReason)
               : null,
           ),
           h(
             'div',
             { className: 'dy-svc-row-status' },
-            h(StatusPill, { status: app.status, t }),
+            managed
+              ? h(StatusPill, { status: app.status, t })
+              : h(
+                  'span',
+                  { className: 'dy-pill', 'data-status': 'running' },
+                  h('span', { className: 'dy-dot' }),
+                  h('span', { className: 'dy-pill-label' }, t('externalRunning')),
+                ),
             /** 没在跑就没有时长可显示，不要用一排"—"占位。 */
             typeof app.uptimeMs === 'number'
               ? h('span', { className: 'dy-svc-uptime' }, formatUptime(app.uptimeMs, t))
@@ -5175,7 +5225,7 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'dy-svc-row-actions' },
-            running
+            !managed
               ? h(
                   React.Fragment,
                   null,
@@ -5193,87 +5243,127 @@ window.__ModuleLoader__.load({
                     'button',
                     {
                       type: 'button',
-                      className: 'dy-btn',
+                      className: 'dy-btn dy-btn-primary',
                       disabled: busy !== '',
+                      title: t('externalRestartHint'),
                       onClick: () => act('restart', { id: app.id }, `restart:${app.id}`),
                     },
                     t('actionRestart'),
                   ),
                 )
               : h(
-                  'button',
-                  {
-                    type: 'button',
-                    className: 'dy-btn',
-                    disabled: busy !== '' || app.missing === true,
-                    title: app.missing ? t('missingBadge') : undefined,
-                    onClick: () => act('start', { id: app.id }, `start:${app.id}`),
-                  },
-                  t('actionStart'),
-                ),
-            h(
-              'button',
-              { type: 'button', className: 'dy-btn', onClick: () => onLogs(app.id) },
-              t('actionLogs'),
-            ),
-            removeOpen
-              ? h(
                   React.Fragment,
                   null,
-                  h('span', { className: 'dy-confirm' }, t('removeConfirm')),
+                  running
+                    ? h(
+                        React.Fragment,
+                        null,
+                        h(
+                          'button',
+                          {
+                            type: 'button',
+                            className: 'dy-btn',
+                            disabled: busy !== '',
+                            onClick: () => act('stop', { id: app.id }, `stop:${app.id}`),
+                          },
+                          t('actionStop'),
+                        ),
+                        h(
+                          'button',
+                          {
+                            type: 'button',
+                            className: 'dy-btn',
+                            disabled: busy !== '',
+                            onClick: () => act('restart', { id: app.id }, `restart:${app.id}`),
+                          },
+                          t('actionRestart'),
+                        ),
+                      )
+                    : h(
+                        'button',
+                        {
+                          type: 'button',
+                          className: 'dy-btn',
+                          disabled: busy !== '' || app.missing === true,
+                          title: app.missing ? t('missingBadge') : undefined,
+                          onClick: () => act('start', { id: app.id }, `start:${app.id}`),
+                        },
+                        t('actionStart'),
+                      ),
                   h(
                     'button',
-                    {
-                      type: 'button',
-                      className: 'dy-btn dy-btn-danger',
-                      disabled: busy !== '',
-                      onClick: () => onRemove(app.id),
-                    },
-                    t('actionRemove'),
+                    { type: 'button', className: 'dy-btn', onClick: () => onLogs(app.id) },
+                    t('actionLogs'),
                   ),
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'dy-btn',
-                      onClick: () => setConfirmRemove(''),
-                    },
-                    t('removeCancel'),
-                  ),
-                )
-              : running
-                ? null
-                : h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'dy-btn dy-btn-danger',
-                      disabled: busy !== '',
-                      onClick: () => setConfirmRemove(app.id),
-                    },
-                    t('actionRemove'),
-                  ),
+                  removeOpen
+                    ? h(
+                        React.Fragment,
+                        null,
+                        h('span', { className: 'dy-confirm' }, t('removeConfirm')),
+                        h(
+                          'button',
+                          {
+                            type: 'button',
+                            className: 'dy-btn dy-btn-danger',
+                            disabled: busy !== '',
+                            onClick: () => onRemove(app.id),
+                          },
+                          t('actionRemove'),
+                        ),
+                        h(
+                          'button',
+                          {
+                            type: 'button',
+                            className: 'dy-btn',
+                            onClick: () => setConfirmRemove(''),
+                          },
+                          t('removeCancel'),
+                        ),
+                      )
+                    : running
+                      ? null
+                      : h(
+                          'button',
+                          {
+                            type: 'button',
+                            className: 'dy-btn dy-btn-danger',
+                            disabled: busy !== '',
+                            onClick: () => setConfirmRemove(app.id),
+                          },
+                          t('actionRemove'),
+                        ),
+                ),
           ),
         );
       }
 
-      /** 语言筛选项来自已托管应用的真实语言，去重排序。 */
+      /** 语言筛选项来自全部应用（含外部启动）的真实语言，去重排序。 */
       const languages = [
         ...new Set(
-          apps.flatMap((app) =>
+          allApps.flatMap((app) =>
             typeof app.language === 'string' && app.language !== '' ? [app.language] : [],
           ),
         ),
       ].sort((a, b) => a.localeCompare(b));
 
-      const countByFilter = { all: apps.length, running: 0, crashed: 0, stopped: 0 };
-      for (const app of apps) {
-        if (isActive(app)) countByFilter.running += 1;
+      const countByFilter = {
+        all: allApps.length,
+        running: 0,
+        crashed: 0,
+        stopped: 0,
+        unmanaged: 0,
+      };
+      for (const app of allApps) {
+        if (app.managed === false) countByFilter.unmanaged += 1;
+        else if (isActive(app)) countByFilter.running += 1;
         else if (app.status === 'crashed' || app.status === 'unknown') countByFilter.crashed += 1;
         else countByFilter.stopped += 1;
       }
 
       const matchesStatus = (app) => {
+        if (statusFilter === 'all') return true;
+        if (statusFilter === 'unmanaged') return app.managed === false;
+        if (app.managed === false) return false;
         if (statusFilter === 'running') return isActive(app);
         if (statusFilter === 'crashed') return app.status === 'crashed' || app.status === 'unknown';
         if (statusFilter === 'stopped') {
@@ -5292,6 +5382,7 @@ window.__ModuleLoader__.load({
           app.language,
           app.manager,
           app.ecosystemName,
+          ...(Array.isArray(app.ports) ? app.ports.map(String) : []),
         ]
           .filter((value) => typeof value === 'string' && value !== '')
           .join(' ')
@@ -5322,6 +5413,7 @@ window.__ModuleLoader__.load({
         ['running', 'statusRunning'],
         ['crashed', 'filterCrashedShort'],
         ['stopped', 'statusStopped'],
+        ['unmanaged', 'filterUnmanaged'],
       ];
 
       const syncText = sync
@@ -5332,14 +5424,7 @@ window.__ModuleLoader__.load({
           })}`
         : t('syncNever');
 
-      const externalByRoot = new Map();
-      for (const item of external?.processes ?? []) {
-        if (typeof item.root !== 'string') continue;
-        externalByRoot.set(item.root, (externalByRoot.get(item.root) ?? 0) + 1);
-      }
-      const externalProjects = (status.projects ?? []).filter(
-        (project) => (externalByRoot.get(project.root) ?? 0) > 0,
-      );
+      const externalTotal = allApps.filter((app) => app.managed === false).length;
 
       return h(
         'div',
@@ -5348,19 +5433,29 @@ window.__ModuleLoader__.load({
           'div',
           { className: 'dy-sync-bar' },
           h('span', { className: 'dy-hint' }, syncText),
-          h(
-            'span',
-            { className: 'dy-tag' },
-            autoTakeover ? t('autoTakeoverOn') : t('autoTakeoverOff'),
-          ),
-          lastAutoTakeover
+          externalError
+            ? h('span', { className: 'dy-badge dy-badge-danger' }, externalError)
+            : null,
+          externalUnmatched > 0
             ? h(
                 'span',
-                { className: 'dy-hint' },
-                format(t('autoTakenOver'), { name: lastAutoTakeover.projectName }),
+                { className: 'dy-badge dy-badge-warn', title: t('externalAppsHint') },
+                format(t('externalUnmatchedCount'), { count: externalUnmatched }),
               )
             : null,
           h('span', { className: 'dy-spacer' }),
+          externalTotal > 0
+            ? h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dy-btn dy-btn-primary',
+                  disabled: busy !== '',
+                  onClick: onTakeoverAll,
+                },
+                format(t('takeoverAllCount'), { count: externalTotal }),
+              )
+            : null,
           h(
             'button',
             {
@@ -5372,47 +5467,6 @@ window.__ModuleLoader__.load({
             busy === 'sync' ? t('syncing') : t('syncNow'),
           ),
         ),
-        externalProjects.length > 0
-          ? h(
-              'div',
-              { className: 'dy-external-panel' },
-              h(
-                'div',
-                { className: 'dy-external-title' },
-                format(t('externalCount'), {
-                  count: externalProjects.reduce(
-                    (sum, project) => sum + (externalByRoot.get(project.root) ?? 0),
-                    0,
-                  ),
-                }),
-              ),
-              ...externalProjects.map((project) =>
-                h(
-                  'div',
-                  { key: project.id, className: 'dy-external-row' },
-                  h('span', { className: 'dy-external-name' }, project.name),
-                  h(
-                    'span',
-                    { className: 'dy-hint' },
-                    format(t('externalCount'), {
-                      count: externalByRoot.get(project.root) ?? 0,
-                    }),
-                  ),
-                  h('span', { className: 'dy-spacer' }),
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'dy-btn dy-btn-primary',
-                      disabled: busy !== '',
-                      onClick: () => onTakeoverHosted(project),
-                    },
-                    busy === `takeover:${project.id}` ? t('takingOver') : t('takeoverProject'),
-                  ),
-                ),
-              ),
-            )
-          : null,
         h(
           'div',
           { className: 'dy-filters', role: 'search' },
@@ -5482,7 +5536,10 @@ window.__ModuleLoader__.load({
               { className: 'dy-svc-list' },
               ...visibleGroups.map((group) => {
                 const runningCount = group.apps.filter((app) => app.status === 'running').length;
-                const startable = group.apps.filter((app) => !isActive(app) && !app.missing);
+                const externalCount = group.apps.filter((app) => app.managed === false).length;
+                const startable = group.apps.filter(
+                  (app) => app.managed !== false && !isActive(app) && !app.missing,
+                );
                 const stoppable = group.apps.filter((app) => isActive(app));
                 return h(
                   'section',
@@ -5510,6 +5567,13 @@ window.__ModuleLoader__.load({
                             total: group.apps.length,
                           }),
                         ),
+                        externalCount > 0
+                          ? h(
+                              'span',
+                              { className: 'dy-badge dy-badge-warn' },
+                              `${t('unmanagedBadge')} ${externalCount}`,
+                            )
+                          : null,
                         h(
                           'span',
                           { className: 'dy-tag' },
@@ -5552,6 +5616,18 @@ window.__ModuleLoader__.load({
                     h(
                       'div',
                       { className: 'dy-svc-actions' },
+                      externalCount > 0
+                        ? h(
+                            'button',
+                            {
+                              type: 'button',
+                              className: 'dy-btn dy-btn-primary',
+                              disabled: busy !== '',
+                              onClick: () => onTakeoverProject(group.key),
+                            },
+                            format(t('takeoverAllCount'), { count: externalCount }),
+                          )
+                        : null,
                       /** 只渲染当前可执行的批量动作：59 个项目各挂一排灰掉的按钮
                        * 比没有按钮更乱，而"能不能点"已经由有没有就不言自明。 */
                       startable.length > 0
@@ -5688,16 +5764,7 @@ window.__ModuleLoader__.load({
      * @param {any} props
      */
     function ProjectCard(props) {
-      const {
-        t,
-        project,
-        busy,
-        selected,
-        onToggleSelected,
-        onHostProject,
-        externalCount,
-        onTakeover,
-      } = props;
+      const { t, project, busy, selected, onToggleSelected, onHostProject } = props;
       const groups = Array.isArray(project.ecosystems) ? project.ecosystems : [];
       const apps = groups.flatMap((group) => (Array.isArray(group.apps) ? group.apps : []));
       const hosted = apps.filter((app) => app.alreadyAdded).length;
@@ -5753,29 +5820,6 @@ window.__ModuleLoader__.load({
           ),
           h('div', { className: 'dy-mono dy-project-path' }, project.root),
         ),
-        externalCount > 0
-          ? h(
-              'div',
-              { className: 'dy-external-row' },
-              h(
-                'span',
-                { className: 'dy-badge dy-badge-warn' },
-                format(t('externalCount'), { count: externalCount }),
-              ),
-              h('span', { className: 'dy-hint' }, t('externalHint')),
-              h('span', { className: 'dy-spacer' }),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'dy-btn dy-btn-primary',
-                  disabled: busy !== '',
-                  onClick: () => onTakeover(project),
-                },
-                busy === `takeover:${project.id}` ? t('takingOver') : t('takeoverProject'),
-              ),
-            )
-          : null,
         apps.length === 0 ? h('div', { className: 'dy-hint' }, t('discoverNoApps')) : null,
         ...(groups.length <= 1
           ? (groups[0]?.apps ?? []).map((app) => h(AppRow, { key: app.id, t, app }))
@@ -5835,8 +5879,6 @@ window.__ModuleLoader__.load({
         confirmHostAll,
         onConfirmHostAll,
         onCancelHostAll,
-        external,
-        onTakeoverProject,
       } = props;
 
       const projects = scan && Array.isArray(scan.projects) ? scan.projects : [];
@@ -5847,12 +5889,6 @@ window.__ModuleLoader__.load({
       const projectsWithoutApps = projects.filter(
         (project) => (project.ecosystems ?? []).length === 0,
       );
-      /** 外部进程按项目根目录计数，供项目卡展示“接管”。 */
-      const externalByRoot = new Map();
-      for (const item of external?.processes ?? []) {
-        if (typeof item.root !== 'string') continue;
-        externalByRoot.set(item.root, (externalByRoot.get(item.root) ?? 0) + 1);
-      }
       const selectedCount = projectsWithApps.filter((project) =>
         selectedProjects.has(project.id),
       ).length;
@@ -5939,9 +5975,6 @@ window.__ModuleLoader__.load({
                   }),
                 ),
               ),
-              external?.error
-                ? h('div', { className: 'dy-notice dy-notice-error' }, external.error)
-                : null,
               projectsWithApps.length > 0
                 ? h(
                     'div',
@@ -6027,8 +6060,6 @@ window.__ModuleLoader__.load({
                         selected: selectedProjects.has(project.id),
                         onToggleSelected,
                         onHostProject,
-                        externalCount: externalByRoot.get(project.root) ?? 0,
-                        onTakeover: onTakeoverProject,
                       }),
                     ),
                     ...[...containers.values()].map((entry) =>
@@ -6051,8 +6082,6 @@ window.__ModuleLoader__.load({
                             selected: selectedProjects.has(project.id),
                             onToggleSelected,
                             onHostProject,
-                            externalCount: externalByRoot.get(project.root) ?? 0,
-                            onTakeover: onTakeoverProject,
                           }),
                         ),
                       ),
@@ -6076,8 +6105,6 @@ window.__ModuleLoader__.load({
                         selected: selectedProjects.has(project.id),
                         onToggleSelected,
                         onHostProject,
-                        externalCount: externalByRoot.get(project.root) ?? 0,
-                        onTakeover: onTakeoverProject,
                       }),
                     ),
                   )
@@ -6288,14 +6315,15 @@ window.__ModuleLoader__.load({
         phase: 'loading',
         generatedAt: Date.now(),
         applications: [],
+        externalApps: [],
+        externalUnmatched: 0,
+        externalError: '',
         projects: [],
         system: null,
         resourceHistory: [],
         preferences: { statusBar: readStatusBarCache() },
         sync: null,
         syncIntervalMs: 0,
-        autoTakeover: false,
-        lastAutoTakeover: null,
         warnings: [],
         scanRoots: [],
         error: '',
@@ -6309,8 +6337,6 @@ window.__ModuleLoader__.load({
       const [scanning, setScanning] = React.useState(false);
       const [picking, setPicking] = React.useState(false);
       const [scan, setScan] = React.useState(null);
-      const [external, setExternal] = React.useState({ processes: [], error: '' });
-      const lastServicesRoots = React.useRef('');
       const [selectedProjects, setSelectedProjects] = React.useState(
         () => /** @type {Set<string>} */ (new Set()),
       );
@@ -6467,39 +6493,18 @@ window.__ModuleLoader__.load({
         [act],
       );
 
-      const loadExternal = React.useCallback(async (roots) => {
-        const uniqueRoots = [...new Set(roots.filter((root) => typeof root === 'string' && root))];
-        if (uniqueRoots.length === 0) {
-          setExternal({ processes: [], error: '' });
-          return;
-        }
+      const scanFromRoots = React.useCallback(async (roots) => {
+        setScanning(true);
+        setNotice(null);
         try {
-          const result = await postAction('external', { roots: uniqueRoots });
-          setExternal({
-            processes: Array.isArray(result?.processes) ? result.processes : [],
-            error: typeof result?.error === 'string' ? result.error : '',
-          });
+          const result = await postAction('scan', { roots });
+          setScan({ ...result, roots });
         } catch (error) {
-          setExternal({ processes: [], error: messageOf(error) });
+          setNotice({ kind: 'error', text: messageOf(error) });
+        } finally {
+          setScanning(false);
         }
       }, []);
-
-      const scanFromRoots = React.useCallback(
-        async (roots) => {
-          setScanning(true);
-          setNotice(null);
-          try {
-            const result = await postAction('scan', { roots });
-            setScan({ ...result, roots });
-            void loadExternal((result.projects ?? []).map((project) => project.root));
-          } catch (error) {
-            setNotice({ kind: 'error', text: messageOf(error) });
-          } finally {
-            setScanning(false);
-          }
-        },
-        [loadExternal],
-      );
 
       const onSyncNow = React.useCallback(async () => {
         setBusy('sync');
@@ -6623,86 +6628,6 @@ window.__ModuleLoader__.load({
         }
         await scanFromRoots(roots);
       }, [manualRoots, t, scanFromRoots]);
-
-      const onTakeoverProject = React.useCallback(
-        async (project) => {
-          if (!scan) return;
-          setBusy(`takeover:${project.id}`);
-          setNotice(null);
-          try {
-            const result = await postAction('takeover-project', {
-              projectId: project.id,
-              roots: scan.roots,
-            });
-            await loadStatus();
-            await loadExternal((scan.projects ?? []).map((item) => item.root));
-            if (result?.takenOver) {
-              setScan((previous) => {
-                if (!previous) return previous;
-                return {
-                  ...previous,
-                  projects: (previous.projects ?? []).map((item) =>
-                    item.id === project.id
-                      ? {
-                          ...item,
-                          ecosystems: (item.ecosystems ?? []).map((group) => ({
-                            ...group,
-                            apps: (group.apps ?? []).map((app) => ({
-                              ...app,
-                              alreadyAdded: true,
-                            })),
-                          })),
-                        }
-                      : item,
-                  ),
-                };
-              });
-            }
-            if (typeof result?.reason === 'string' && result.reason !== '') {
-              setNotice({ kind: result.takenOver ? 'info' : 'error', text: result.reason });
-            }
-          } catch (error) {
-            setNotice({ kind: 'error', text: messageOf(error) });
-          } finally {
-            setBusy('');
-          }
-        },
-        [scan, loadStatus, loadExternal],
-      );
-
-      const onTakeoverHostedProject = React.useCallback(
-        async (project) => {
-          setBusy(`takeover:${project.id}`);
-          setNotice(null);
-          try {
-            const result = await postAction('takeover-project', {
-              projectId: project.id,
-              roots: [project.root],
-            });
-            await loadStatus();
-            await loadExternal((status.projects ?? []).map((item) => item.root));
-            if (typeof result?.reason === 'string' && result.reason !== '') {
-              setNotice({ kind: result.takenOver ? 'info' : 'error', text: result.reason });
-            }
-          } catch (error) {
-            setNotice({ kind: 'error', text: messageOf(error) });
-          } finally {
-            setBusy('');
-          }
-        },
-        [status.projects, loadStatus, loadExternal],
-      );
-
-      React.useEffect(() => {
-        if (tab !== 'services') return;
-        const roots = (status.projects ?? [])
-          .map((project) => project.root)
-          .filter((root) => typeof root === 'string' && root !== '');
-        const key = roots.join('|');
-        if (key === '' || key === lastServicesRoots.current) return;
-        lastServicesRoots.current = key;
-        void loadExternal(roots);
-      }, [tab, status.projects, loadExternal]);
 
       const onToggleSelected = React.useCallback((projectId, checked) => {
         setSelectedProjects((previous) => {
@@ -6853,13 +6778,15 @@ window.__ModuleLoader__.load({
           setConfirmRemoveProject,
           onRemoveProject: removeProject,
           onProjectAction: actProject,
+          act,
           sync: status.sync,
           syncIntervalMs: status.syncIntervalMs,
-          autoTakeover: status.autoTakeover,
-          lastAutoTakeover: status.lastAutoTakeover,
           onSync: onSyncNow,
-          external,
-          onTakeoverHosted: onTakeoverHostedProject,
+          onTakeoverAll: () => act('takeover-all', {}, 'takeover-all'),
+          onTakeoverProject: (projectId) =>
+            act('takeover-project', { projectId }, `takeover-project:${projectId}`),
+          externalUnmatched: status.externalUnmatched,
+          externalError: status.externalError,
           onLogs: openLogModal,
           onDiscover: () => setTab('discover'),
           query,
@@ -6890,8 +6817,6 @@ window.__ModuleLoader__.load({
           confirmHostAll,
           onConfirmHostAll,
           onCancelHostAll,
-          external,
-          onTakeoverProject,
         });
       } else if (tab === 'logs') {
         content = h(LogsView, {

@@ -328,11 +328,12 @@ async function dispatchAction(service, body) {
       const projectId = requireString(body.projectId, 'projectId');
       return service.removeProject(projectId);
     }
-    case 'takeover-project': {
-      const projectId = requireString(body.projectId, 'projectId');
-      const roots = normalizeRoots(body.roots);
-      return service.takeoverProjectFromScan(projectId, roots);
-    }
+    case 'takeover-app':
+      return service.takeoverApp(requireString(body.id, 'id'));
+    case 'takeover-project':
+      return service.takeoverProject(requireString(body.projectId, 'projectId'));
+    case 'takeover-all':
+      return service.takeoverAll();
     case 'external': {
       const roots =
         body.roots === undefined || body.roots === null
@@ -367,10 +368,22 @@ export function createDockyardHandlers(service) {
       }
       try {
         const applications = await service.list();
+        const external =
+          typeof service.listExternalApps === 'function'
+            ? await service.listExternalApps()
+            : { apps: [], unmatched: 0, error: '' };
         sendJson(res, 200, {
           ok: true,
           generatedAt: Date.now(),
           applications,
+          externalApps: external.apps.map((app) => {
+            const view = { ...app };
+            delete view.processes;
+            delete view.stopProcesses;
+            return view;
+          }),
+          externalUnmatched: external.unmatched,
+          externalError: external.error,
           projects: await service.listProjects(),
           system: service.systemSnapshot(),
           // 概览趋势只取最近 120 个聚合点；旧 Host 没有该字段时给空数组。
@@ -379,8 +392,6 @@ export function createDockyardHandlers(service) {
             : [],
           sync: service.lastSync,
           syncIntervalMs: service.syncIntervalMs,
-          autoTakeover: service.autoTakeover === true,
-          lastAutoTakeover: service.lastAutoTakeover,
           scanRoots: service.store.state.scanRoots,
           preferences: { statusBar: service.statusBarVisible !== false },
           warnings: service.store.problems,

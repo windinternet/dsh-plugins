@@ -114,19 +114,42 @@ function makeService(overrides = {}) {
         error: '',
       };
     },
-    takeoverProjectFromScan: async (
-      /** @type {string} */ projectId,
-      /** @type {string[]} */ roots,
-    ) => {
-      calls.push(['takeoverProjectFromScan', projectId, roots]);
+    listExternalApps: async () => {
+      calls.push(['listExternalApps']);
       return {
-        takenOver: true,
-        stoppedPids: [123],
-        appsAdded: 1,
-        started: ['a'],
-        failed: [],
-        reason: 'ok',
+        apps: [
+          {
+            id: 'a',
+            name: 'A',
+            projectId: 'project:/work/a',
+            projectName: 'A',
+            projectRoot: '/work/a',
+            dir: '/work/a',
+            managed: false,
+            status: 'running',
+            cpuPercent: 1,
+            rssBytes: 1024,
+            pids: [123],
+            ports: [3000],
+            processes: [{ pid: 123 }],
+            stopProcesses: [{ pid: 123 }],
+          },
+        ],
+        unmatched: 0,
+        error: '',
       };
+    },
+    takeoverApp: async (/** @type {string} */ id) => {
+      calls.push(['takeoverApp', id]);
+      return { takenOver: 1, started: [id], failed: [], skipped: [], reason: 'ok' };
+    },
+    takeoverProject: async (/** @type {string} */ projectId) => {
+      calls.push(['takeoverProject', projectId]);
+      return { takenOver: 1, started: ['a'], failed: [], skipped: [], reason: 'ok' };
+    },
+    takeoverAll: async () => {
+      calls.push(['takeoverAll']);
+      return { takenOver: 1, started: ['a'], failed: [], skipped: [], reason: 'ok' };
     },
   };
   return Object.assign(service, overrides);
@@ -230,6 +253,10 @@ test('status：返回应用、扫描根目录与诊断，且不带 CORS 头', as
   assert.deepEqual(body.warnings, []);
   assert.deepEqual(body.preferences, { statusBar: true });
   assert.deepEqual(body.resourceHistory, [{ at: 1, cpuPercent: 2, rssBytes: 3, apps: 1 }]);
+  assert.equal(body.externalApps.length, 1);
+  assert.equal(body.externalApps[0].id, 'a');
+  assert.equal(body.externalApps[0].processes, undefined);
+  assert.equal(body.externalUnmatched, 0);
   assert.equal(res.headers['access-control-allow-origin'], undefined);
 });
 
@@ -459,7 +486,27 @@ test('external：按 root 查询外部进程；takeover 走项目接管', async 
     /** @type {any} */ (takeover),
   );
   assert.equal(takeover.statusCode, 200);
-  assert.deepEqual(service.calls.at(-1), ['takeoverProjectFromScan', 'project:/work/a', ['/work']]);
+  assert.deepEqual(service.calls.at(-1), ['takeoverProject', 'project:/work/a']);
+
+  const appTakeover = makeRes();
+  await handlers.action(
+    makeReq({
+      method: 'POST',
+      headers: ACTION_HEADERS,
+      body: { action: 'takeover-app', id: 'a' },
+    }),
+    /** @type {any} */ (appTakeover),
+  );
+  assert.equal(appTakeover.statusCode, 200);
+  assert.deepEqual(service.calls.at(-1), ['takeoverApp', 'a']);
+
+  const allTakeover = makeRes();
+  await handlers.action(
+    makeReq({ method: 'POST', headers: ACTION_HEADERS, body: { action: 'takeover-all' } }),
+    /** @type {any} */ (allTakeover),
+  );
+  assert.equal(allTakeover.statusCode, 200);
+  assert.deepEqual(service.calls.at(-1), ['takeoverAll']);
 });
 
 test('action：sync 触发周期同步', async () => {

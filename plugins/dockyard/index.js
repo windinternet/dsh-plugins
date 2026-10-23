@@ -47,8 +47,6 @@ const CONFIG_SPEC = {
   enableSkill: { type: 'boolean', default: true },
   syncIntervalMs: { type: 'number', default: 300000 },
   syncOnStart: { type: 'boolean', default: true },
-  autoTakeover: { type: 'boolean', default: true },
-  autoTakeoverIntervalMs: { type: 'number', default: 60000 },
 };
 
 /**
@@ -121,8 +119,6 @@ export function apply(ctx, rawConfig) {
     onWarn: (message) => warn(ctx, `[dockyard] ${message}`),
     syncIntervalMs: config.syncIntervalMs,
     syncOnStart: config.syncOnStart,
-    autoTakeover: config.autoTakeover,
-    autoTakeoverIntervalMs: config.autoTakeoverIntervalMs,
   });
 
   // 服务初始化放在 effect 里：加载状态、建目录都属于"本次挂载拥有的资源"。
@@ -644,7 +640,7 @@ export function apply(ctx, rawConfig) {
         render: (_args, value) => [{ type: 'text', text: value.reason }],
       },
       async execute(args) {
-        const result = await service.takeoverProjectFromScan(args.projectId, args.roots);
+        const result = await service.takeoverProjectFromScan(args.projectId);
         return { takenOver: result.takenOver, reason: result.reason };
       },
     }),

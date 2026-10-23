@@ -11,16 +11,21 @@
 import { appendFile, mkdir, rename, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { cpus, freemem, loadavg, totalmem, uptime } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { flattenApps, scanProjects } from './project-scanner.js';
+import { matchExternalApps, collectStopProcesses } from './external-apps.js';
 import {
   startSupervisedProcess,
   stopSupervisedProcess,
   isProcessAlive,
 } from './internal/process-supervisor.js';
-import { LogBuffer, readTail } from './internal/log-buffer.js';
+import { readTail } from './internal/log-buffer.js';
 import { StateStore } from './store.js';
 import { sampleProcessGroup } from './metrics.js';
 import { listExternalProcesses, terminateExternalProcess } from './processes.js';
+
+/** 独立启动器：应用由它托管，DSH/插件退出后它继续运行。 */
+const APP_LAUNCHER = fileURLToPath(new URL('./internal/app-launcher.mjs', import.meta.url));
 
 /**
  * 由扫描结果推导出稳定的应用 id。
@@ -63,8 +68,6 @@ export class DockyardService {
    * @param {typeof terminateExternalProcess} [options.terminateImpl] 可替换的进程终止实现。
    * @param {number} [options.syncIntervalMs] 周期同步间隔；0 表示关闭（测试用）。
    * @param {boolean} [options.syncOnStart] 启动后是否立即做一次同步。
-   * @param {boolean} [options.autoTakeover] 发现已托管项目有外部进程时是否自动接管。
-   * @param {number} [options.autoTakeoverIntervalMs] 自动接管轮询间隔。
    */
   constructor({
     dataDir,
@@ -76,8 +79,6 @@ export class DockyardService {
     terminateImpl = terminateExternalProcess,
     syncIntervalMs = 5 * 60 * 1000,
     syncOnStart = true,
-    autoTakeover = true,
-    autoTakeoverIntervalMs = 60 * 1000,
   }) {
     this.dataDir = dataDir;
     this.logDir = join(dataDir, 'logs');
@@ -89,8 +90,6 @@ export class DockyardService {
     this.terminateImpl = terminateImpl;
     this.syncIntervalMs = syncIntervalMs;
     this.syncOnStart = syncOnStart;
-    this.autoTakeover = autoTakeover;
-    this.autoTakeoverIntervalMs = autoTakeoverIntervalMs;
     /** @type {ReturnType<typeof setInterval> | null} */
     this.syncTimer = null;
     /** @type {ReturnType<typeof setTimeout> | null} */
@@ -98,15 +97,6 @@ export class DockyardService {
     this.syncing = false;
     /** @type {null | { at: number, durationMs: number, projects: number, added: number, changed: number, missing: number, reappeared: number, errors: number }} */
     this.lastSync = null;
-    /** @type {ReturnType<typeof setInterval> | null} */
-    this.autoTakeoverTimer = null;
-    /** @type {ReturnType<typeof setTimeout> | null} */
-    this.autoTakeoverInitialTimer = null;
-    this.autoTakingOver = false;
-    /** @type {Map<string, number>} 失败后冷却到何时 */
-    this.autoTakeoverCooldown = new Map();
-    /** @type {null | { at: number, projectId: string, projectName: string, stoppedPids: number[], started: string[], reason: string }} */
-    this.lastAutoTakeover = null;
     this.metricsDir = join(dataDir, 'metrics');
     /** @type {Map<string, import('./metrics.js').ProcessMetrics>} */
     this.metrics = new Map();
@@ -119,14 +109,18 @@ export class DockyardService {
      * @type {{ at: number, cpuPercent: number, rssBytes: number, apps: number }[]}
      */
     this.resourceHistory = [];
+    /**
+     * 外部进程 → 已托管应用的匹配结果缓存。状态接口每 5 秒被轮询一次，
+     * 每次 ps + lsof 没有必要；4 秒内的重复查询复用同一份结果。
+     * @type {null | { at: number, value: { apps: any[], unmatched: number, error: string } }}
+     */
+    this.externalAppsCache = null;
     /** @type {ReturnType<typeof setInterval> | null} */
     this.metricsTimer = null;
     this.metricsSampling = false;
     this.store = new StateStore(join(dataDir, 'state.json'));
     /** @type {Map<string, import('./internal/process-supervisor.js').SupervisedProcess>} */
     this.processes = new Map();
-    /** @type {Map<string, LogBuffer>} */
-    this.buffers = new Map();
     /**
      * 停止进程时的时间参数。由宿主入口在创建后注入，缺省时用 plugin-kit 的默认值。
      * 显式声明这个字段，否则赋值会静默创建属性、而类型系统看不到它。
@@ -143,7 +137,6 @@ export class DockyardService {
     await mkdir(this.metricsDir, { recursive: true });
     this.#startMetrics();
     this.#startSync();
-    this.#startAutoTakeover();
   }
 
   /** 启动周期同步。只同步已托管项目；定时器 unref，不阻止进程退出。 */
@@ -173,114 +166,6 @@ export class DockyardService {
     }
   }
 
-  /** 启动自动接管轮询。默认开启；发现已托管项目有外部服务进程时自动接管。 */
-  #startAutoTakeover() {
-    if (!this.autoTakeover || this.autoTakeoverIntervalMs <= 0) return;
-    this.autoTakeoverTimer = setInterval(() => {
-      void this.autoTakeoverOnce();
-    }, this.autoTakeoverIntervalMs);
-    this.autoTakeoverTimer.unref?.();
-    this.autoTakeoverInitialTimer = setTimeout(() => {
-      void this.autoTakeoverOnce();
-    }, 8000);
-    this.autoTakeoverInitialTimer.unref?.();
-  }
-
-  /** 停止自动接管轮询。 */
-  #stopAutoTakeover() {
-    if (this.autoTakeoverTimer !== null) {
-      clearInterval(this.autoTakeoverTimer);
-      this.autoTakeoverTimer = null;
-    }
-    if (this.autoTakeoverInitialTimer !== null) {
-      clearTimeout(this.autoTakeoverInitialTimer);
-      this.autoTakeoverInitialTimer = null;
-    }
-  }
-
-  /**
-   * 对已托管项目做一轮自动接管：发现 cwd 在项目根下的外部服务进程时，
-   * 终止它们并按项目启动托管应用。默认开启；`autoTakeover: false` 可关闭。
-   * 未托管项目不会自动加入，避免扫描目录后意外接管整台机器。
-   * @returns {Promise<{ takenOver: number, skipped: number, errors: number }>}
-   */
-  async autoTakeoverOnce() {
-    const summary = { takenOver: 0, skipped: 0, errors: 0 };
-    if (!this.autoTakeover || this.autoTakingOver || this.syncing) return summary;
-    this.autoTakingOver = true;
-    try {
-      const projects = new Map();
-      for (const record of this.store.list()) {
-        if (!record.projectId || !record.projectRoot) continue;
-        if (!projects.has(record.projectId)) {
-          projects.set(record.projectId, {
-            id: record.projectId,
-            name: record.projectName ?? record.projectId,
-            root: record.projectRoot,
-          });
-        }
-      }
-      const allRoots = [...new Set([...projects.values()].map((project) => project.root))];
-      const external = await this.externalProcesses(allRoots);
-      if (external.error) {
-        summary.errors += 1;
-        return summary;
-      }
-      /** @type {Map<string, number>} */
-      const externalCounts = new Map();
-      // 自动接管只针对“正在监听端口”的外部服务，避免把 pnpm install / build 这类
-      // 一次性命令误判成服务并杀掉。手动接管仍可处理没有端口的工作进程。
-      for (const item of external.processes) {
-        if (item.ports.length === 0) continue;
-        externalCounts.set(item.root, (externalCounts.get(item.root) ?? 0) + 1);
-      }
-      for (const project of projects.values()) {
-        const cooldown = this.autoTakeoverCooldown.get(project.id) ?? 0;
-        if (Date.now() < cooldown) {
-          summary.skipped += 1;
-          continue;
-        }
-        if ((externalCounts.get(project.root) ?? 0) === 0) continue;
-        const projectExternal = external.processes.filter((item) => item.root === project.root);
-        const byPid = new Map(projectExternal.map((item) => [item.pid, item]));
-        const onlyPids = new Set(
-          projectExternal.filter((item) => item.ports.length > 0).map((item) => item.pid),
-        );
-        // 监听进程可能是 pnpm/turbo 的子进程；把项目内的祖先链一起停掉，
-        // 避免父进程发现子进程退出后又把它拉起来。
-        for (const pid of [...onlyPids]) {
-          let cursor = byPid.get(pid)?.ppid ?? 0;
-          for (let depth = 0; depth < 16 && cursor > 1; depth += 1) {
-            if (!byPid.has(cursor)) break;
-            onlyPids.add(cursor);
-            cursor = byPid.get(cursor)?.ppid ?? 0;
-          }
-        }
-        const result = await this.takeoverProjectFromScan(project.id, [project.root], {
-          onlyPids: [...onlyPids],
-        });
-        if (result.takenOver) {
-          summary.takenOver += 1;
-          this.lastAutoTakeover = {
-            at: Date.now(),
-            projectId: project.id,
-            projectName: project.name,
-            stoppedPids: result.stoppedPids,
-            started: result.started,
-            reason: result.reason,
-          };
-        } else {
-          summary.errors += 1;
-          this.autoTakeoverCooldown.set(project.id, Date.now() + 10 * 60 * 1000);
-          this.onWarn(`[dockyard] 自动接管 ${project.name} 失败：${result.reason}`);
-        }
-      }
-      return summary;
-    } finally {
-      this.autoTakingOver = false;
-    }
-  }
-
   /**
    * 以磁盘事实为准，对已托管项目做一次结构同步：
    * - 新应用加入托管（不自动启动）；
@@ -303,7 +188,7 @@ export class DockyardService {
       reappeared: 0,
       errors: 0,
     };
-    if (this.syncing || this.autoTakingOver) return this.lastSync ?? empty;
+    if (this.syncing) return this.lastSync ?? empty;
     this.syncing = true;
     try {
       const records = this.store.list();
@@ -612,18 +497,19 @@ export class DockyardService {
   }
 
   /**
-   * 取得（必要时创建）某个应用的日志缓冲。
-   * @param {string} appId
-   * @param {string} logFile
-   * @returns {LogBuffer}
+   * 追加一条 dockyard 自身的系统日志。子进程输出直接写同一个文件，
+   * 这里只补启动/停止/退出这类事件，保证日志里能看到控制动作。
+   * @param {string | undefined} logFile
+   * @param {string} text
+   * @returns {Promise<void>}
    */
-  #bufferFor(appId, logFile) {
-    let buffer = this.buffers.get(appId);
-    if (!buffer) {
-      buffer = new LogBuffer({ file: logFile, maxEntries: 1000 });
-      this.buffers.set(appId, buffer);
+  async #appendSystemLog(logFile, text) {
+    if (!logFile) return;
+    try {
+      await appendFile(logFile, `[${new Date().toISOString()}] SYS ${text}\n`, 'utf8');
+    } catch {
+      // 日志是观测，不是核心状态；写失败不影响启停。
     }
-    return buffer;
   }
 
   /**
@@ -816,7 +702,6 @@ export class DockyardService {
     }
     for (const record of records) {
       this.store.remove(record.id);
-      this.buffers.delete(record.id);
     }
     await this.store.save();
     return {
@@ -838,7 +723,6 @@ export class DockyardService {
       return { removed: false, reason: '应用处于运行状态，请先停止再移除。' };
     }
     this.store.remove(id);
-    this.buffers.delete(id);
     this.metrics.delete(id);
     this.metricsHistory.delete(id);
     await this.store.save();
@@ -987,83 +871,186 @@ export class DockyardService {
   }
 
   /**
-   * 接管一个项目：终止 cwd 在项目根下的外部进程，再由 dockyard 托管并启动项目应用。
-   * 必须先重新扫描，确保项目与启动命令仍是当前磁盘事实。
-   * @param {string} projectId
-   * @param {string[]} roots
-   * @param {{ onlyPids?: number[] }} [options] 自动接管时只处理指定的监听进程 pid
-   * @returns {Promise<{ takenOver: boolean, stoppedPids: number[], appsAdded: number, started: string[], failed: { id: string, reason: string }[], reason: string }>}
+   * 列出"外部启动、但能匹配回已托管应用"的进程，以及匹配不到的外部进程数量。
+   * 这里只做观测，不终止、不启动任何东西。
+   * @param {{ fresh?: boolean }} [options] fresh=true 时跳过 4 秒缓存
+   * @returns {Promise<{ apps: any[], unmatched: number, error: string }>}
    */
-  async takeoverProjectFromScan(projectId, roots, options = {}) {
-    const scan = await this.scan(roots);
-    const project = scan.projects.find((item) => item.id === projectId);
-    if (!project) {
-      return {
-        takenOver: false,
-        stoppedPids: [],
-        appsAdded: 0,
-        started: [],
-        failed: [],
-        reason: '项目已不在当前磁盘上，请重新扫描。',
-      };
+  async listExternalApps(options = {}) {
+    const now = Date.now();
+    if (
+      !options.fresh &&
+      this.externalAppsCache !== null &&
+      now - this.externalAppsCache.at < 4000
+    ) {
+      return this.externalAppsCache.value;
     }
 
-    const external = await this.externalProcesses([project.root]);
-    if (external.error) {
-      return {
-        takenOver: false,
-        stoppedPids: [],
-        appsAdded: 0,
-        started: [],
-        failed: [],
-        reason: external.error,
-      };
+    const records = this.store
+      .list()
+      .filter((record) => Boolean(record.projectRoot) && record.missing !== true);
+    const roots = [...new Set(records.map((record) => record.projectRoot))].filter(
+      (root) => typeof root === 'string',
+    );
+    if (roots.length === 0) {
+      const value = { apps: [], unmatched: 0, error: '' };
+      this.externalAppsCache = { at: now, value };
+      return value;
     }
 
+    const managedPids = [...this.processes.values()]
+      .map((handle) => handle.pid)
+      .filter((pid) => Number.isInteger(pid));
+    const result = await this.processLister({ roots, managedPids });
+    if (result.error) {
+      const value = { apps: [], unmatched: 0, error: result.error };
+      this.externalAppsCache = { at: now, value };
+      return value;
+    }
+
+    const matched = matchExternalApps(records, result.processes);
+    const apps = matched.apps.map((app) => ({
+      ...app,
+      stopProcesses: collectStopProcesses(app.processes, result.processes, app.projectRoot),
+    }));
+    const value = { apps, unmatched: matched.unmatched.length, error: '' };
+    this.externalAppsCache = { at: now, value };
+    return value;
+  }
+
+  /**
+   * 手动接管一组应用：只终止匹配到这些应用的外部进程，再把对应应用交给 dockyard 启动。
+   * 接管单位是应用，不会因为同项目里还有别的应用就顺带启动它们。
+   * @param {string[]} ids
+   * @returns {Promise<{ takenOver: number, stoppedPids: number[], started: string[], failed: { id: string, reason: string }[], skipped: { id: string, reason: string }[], reason: string }>}
+   */
+  async takeoverApps(ids) {
+    const requested = [...new Set(ids.filter((id) => typeof id === 'string' && id !== ''))];
+    const empty = {
+      takenOver: 0,
+      stoppedPids: [],
+      started: [],
+      failed: [],
+      skipped: [],
+      reason: '没有指定要接管的应用。',
+    };
+    if (requested.length === 0) return empty;
+
+    const external = await this.listExternalApps({ fresh: true });
+    const byId = new Map(external.apps.map((app) => [app.id, app]));
     const stoppedPids = [];
-    const failedToStop = [];
-    const targets = options.onlyPids
-      ? external.processes.filter((item) => options.onlyPids?.includes(item.pid))
-      : external.processes;
-    for (const item of targets) {
-      const result = await this.terminateImpl(item, this.stopOptions ?? {});
-      if (result.stopped) stoppedPids.push(item.pid);
-      else failedToStop.push(`pid ${item.pid}`);
-    }
-    if (failedToStop.length > 0) {
-      return {
-        takenOver: false,
-        stoppedPids,
-        appsAdded: 0,
-        started: [],
-        failed: [],
-        reason: `仍有外部进程未停止：${failedToStop.join('、')}；未启动托管应用，避免端口冲突。`,
-      };
-    }
-
-    const added = await this.addProject(project);
+    const stopped = new Set();
     const started = [];
     const failed = [];
-    for (const app of flattenApps([project])) {
-      const record = this.store.get(app.id);
-      if (record && (this.processes.has(app.id) || record.status === 'running')) {
+    const skipped = [];
+
+    for (const id of requested) {
+      const target = byId.get(id);
+      if (!target) {
+        skipped.push({ id, reason: '没有发现该应用的外部进程。' });
         continue;
       }
-      const result = await this.start(app.id);
-      if (result.started) started.push(app.id);
-      else failed.push({ id: app.id, reason: result.reason });
+      if (this.processes.has(id)) {
+        skipped.push({ id, reason: '应用已在 dockyard 托管中。' });
+        continue;
+      }
+
+      let stoppedOk = true;
+      for (const process of target.stopProcesses ?? []) {
+        if (stopped.has(process.pid)) continue;
+        const result = await this.terminateImpl(process, this.stopOptions ?? {});
+        if (result.stopped) {
+          stopped.add(process.pid);
+          stoppedPids.push(process.pid);
+        } else {
+          stoppedOk = false;
+          failed.push({
+            id,
+            reason: `外部进程 ${process.pid} 未能停止：${result.reason}`,
+          });
+          break;
+        }
+      }
+      if (!stoppedOk) continue;
+
+      const startedResult = await this.start(id);
+      if (startedResult.started) started.push(id);
+      else failed.push({ id, reason: startedResult.reason });
     }
 
+    this.externalAppsCache = null;
+    const reason =
+      `已停止 ${stoppedPids.length} 个外部进程，接管 ${started.length} 个应用` +
+      (failed.length > 0 ? `，${failed.length} 个失败` : '') +
+      (skipped.length > 0 ? `，${skipped.length} 个跳过` : '') +
+      '。';
     return {
-      takenOver: true,
+      takenOver: started.length,
       stoppedPids,
-      appsAdded: added.appsAdded,
       started,
       failed,
-      reason:
-        `已停止 ${stoppedPids.length} 个外部进程，托管 ${added.appsAdded} 个应用，启动 ${started.length} 个` +
-        (failed.length > 0 ? `，${failed.length} 个启动失败。` : '。'),
+      skipped,
+      reason,
     };
+  }
+
+  /**
+   * 接管单个应用。
+   * @param {string} id
+   * @returns {Promise<any>}
+   */
+  async takeoverApp(id) {
+    return this.takeoverApps([id]);
+  }
+
+  /**
+   * 接管一个项目下所有"外部启动"的应用；已经由 dockyard 运行的不会重复启动。
+   * @param {string} projectId
+   * @returns {Promise<any>}
+   */
+  async takeoverProject(projectId) {
+    const external = await this.listExternalApps({ fresh: true });
+    const ids = external.apps.filter((app) => app.projectId === projectId).map((app) => app.id);
+    if (ids.length === 0) {
+      return {
+        takenOver: 0,
+        stoppedPids: [],
+        started: [],
+        failed: [],
+        skipped: [],
+        reason: '该项目下没有发现外部启动的应用。',
+      };
+    }
+    return this.takeoverApps(ids);
+  }
+
+  /**
+   * 接管所有已托管项目下"外部启动"的应用。
+   * @returns {Promise<any>}
+   */
+  async takeoverAll() {
+    const external = await this.listExternalApps({ fresh: true });
+    const ids = external.apps.map((app) => app.id);
+    if (ids.length === 0) {
+      return {
+        takenOver: 0,
+        stoppedPids: [],
+        started: [],
+        failed: [],
+        skipped: [],
+        reason: '没有发现外部启动的应用。',
+      };
+    }
+    return this.takeoverApps(ids);
+  }
+
+  /**
+   * 兼容旧入口：项目级接管不再重新扫描项目，也不启动项目下全部应用。
+   * @param {string} projectId
+   * @returns {Promise<any>}
+   */
+  async takeoverProjectFromScan(projectId) {
+    return this.takeoverProject(projectId);
   }
 
   /**
@@ -1087,14 +1074,22 @@ export class DockyardService {
     record.statusReason = '正在启动。';
     await this.store.save();
 
-    const buffer = this.#bufferFor(id, record.logFile);
+    await this.#appendSystemLog(record.logFile, '正在启动。');
     try {
       const handle = await startSupervisedProcess({
         id,
-        command: record.command,
-        args: record.args,
+        // 不直接把应用挂到 DSH 下：由独立启动器拉起，日志、信号与生命周期都归启动器。
+        command: process.execPath,
+        args: [APP_LAUNCHER],
         cwd: record.dir,
-        onOutput: (stream, text) => buffer.append(stream, text),
+        quiet: true,
+        env: {
+          DOCKYARD_LAUNCH_LOG: record.logFile ?? '',
+          DOCKYARD_LAUNCH_CWD: record.dir,
+          DOCKYARD_LAUNCH_COMMAND: record.command,
+          DOCKYARD_LAUNCH_ARGS: JSON.stringify(record.args ?? []),
+          DOCKYARD_LAUNCH_MAX_BYTES: String(8 * 1024 * 1024),
+        },
         onExit: (status, detail) => {
           const current = this.store.get(id);
           if (!current) return;
@@ -1107,6 +1102,12 @@ export class DockyardService {
           current.exitCode = detail.code ?? undefined;
           current.pid = undefined;
           this.processes.delete(id);
+          void this.#appendSystemLog(
+            current.logFile,
+            status === 'stopped'
+              ? '进程已停止。'
+              : `进程异常退出（code=${detail.code} signal=${detail.signal}）。`,
+          );
           void this.store.save();
         },
       });
@@ -1119,12 +1120,14 @@ export class DockyardService {
       record.stoppedAt = undefined;
       record.exitCode = undefined;
       await this.store.save();
+      await this.#appendSystemLog(record.logFile, `已启动（pid ${handle.pid}）。`);
       return { started: true, reason: `已启动（pid ${handle.pid}）。`, pid: handle.pid };
     } catch (error) {
       record.status = 'crashed';
       record.statusReason = `启动失败：${error instanceof Error ? error.message : String(error)}`;
       record.pid = undefined;
       await this.store.save();
+      await this.#appendSystemLog(record.logFile, record.statusReason);
       return { started: false, reason: record.statusReason };
     }
   }
@@ -1140,7 +1143,34 @@ export class DockyardService {
 
     const handle = this.processes.get(id);
     if (!handle) {
-      // 没有句柄：可能是宿主重启后遗留的 unknown，或本来就没启动。
+      // 没有 dockyard 句柄时，先看是不是外部启动的应用。非托管应用也允许停止：
+      // 停止的只是匹配到的外部进程，不会把它转成托管运行。
+      const external = await this.listExternalApps({ fresh: true });
+      const target = external.apps.find((app) => app.id === id);
+      if (target) {
+        const failed = [];
+        let stoppedCount = 0;
+        for (const process of target.stopProcesses ?? []) {
+          const result = await this.terminateImpl(process, this.stopOptions ?? {});
+          if (result.stopped) stoppedCount += 1;
+          else failed.push(`pid ${process.pid}`);
+        }
+        if (failed.length > 0) {
+          record.status = 'crashed';
+          record.statusReason = `外部进程未能停止：${failed.join('、')}。`;
+          await this.store.save();
+          return { stopped: false, reason: record.statusReason };
+        }
+        record.status = 'stopped';
+        record.statusReason = `已停止 ${stoppedCount} 个外部进程。`;
+        record.stoppedAt = Date.now();
+        record.pid = undefined;
+        await this.store.save();
+        this.externalAppsCache = null;
+        return { stopped: true, reason: record.statusReason };
+      }
+
+      // 宿主重启后遗留的 unknown，或本来就没启动。
       if (record.status === 'unknown') {
         record.status = 'stopped';
         record.statusReason = '用户确认标记为已停止（本插件无法回收非本进程启动的进程）。';
@@ -1196,11 +1226,6 @@ export class DockyardService {
     const record = this.store.get(id);
     if (!record) return { lines: [`没有 id 为 ${id} 的应用。`], source: 'none' };
 
-    const buffer = this.buffers.get(id);
-    const buffered = buffer ? buffer.tail(lines) : [];
-    if (buffered.length > 0) {
-      return { lines: renderLogLines(buffered).split('\n'), source: 'buffer' };
-    }
     if (record.logFile) {
       const fromFile = await readTail(record.logFile, { lines });
       if (fromFile.length > 0) return { lines: fromFile, source: 'file' };
@@ -1216,7 +1241,7 @@ export class DockyardService {
    * @returns {Promise<void>}
    */
   async flushLogs() {
-    for (const buffer of this.buffers.values()) await buffer.flush();
+    // 子进程输出直接写文件，没有内存缓冲需要落盘；保留方法兼容调用方。
   }
 
   /**
@@ -1231,8 +1256,6 @@ export class DockyardService {
   async shutdown(options = {}) {
     this.#stopMetrics();
     this.#stopSync();
-    this.#stopAutoTakeover();
-    for (const buffer of this.buffers.values()) await buffer.flush();
 
     if (options.killProcesses) {
       let killed = 0;

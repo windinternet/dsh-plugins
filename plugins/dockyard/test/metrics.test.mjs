@@ -32,7 +32,6 @@ test('服务采样：记录 CPU/内存、写入指标文件，并出现在 list 
       dataDir: dir,
       metricsIntervalMs: 0,
       syncIntervalMs: 0,
-      autoTakeover: false,
       sampleProcessImpl: async () => ({
         cpuPercent: 12.5,
         rssBytes: 64 * 1024 * 1024,

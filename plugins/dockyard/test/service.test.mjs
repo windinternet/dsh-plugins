@@ -24,7 +24,6 @@ function makeService(dir, candidates, onWarn) {
     onWarn,
     metricsIntervalMs: 0,
     syncIntervalMs: 0,
-    autoTakeover: false,
     scanImpl: async () => ({
       projects: [
         {
@@ -227,7 +226,10 @@ test('启动 → 状态为运行中且进程真实存在 → 停止后进程消�
     await new Promise((resolve) => setTimeout(resolve, 400));
     const logs = await service.logs('life', 50);
     assert.ok(logs.lines.length > 0, '应读到日志');
-    assert.match(logs.lines.join('\n'), /ready/);
+    const logText = logs.lines.join('\n');
+    assert.match(logText, /OUT ready/);
+    assert.match(logText, /ERR warn-line/);
+    assert.match(logText, /SYS 已启动/);
 
     const stopped = await service.stop('life');
     assert.equal(stopped.stopped, true);
@@ -643,7 +645,6 @@ test('项目级托管：一次加入项目下全部应用，重复加入被跳�
       dataDir: dir,
       metricsIntervalMs: 0,
       syncIntervalMs: 0,
-      autoTakeover: false,
       scanImpl: async () => ({
         projects: [/** @type {any} */ (project)],
         diagnostics: [],
@@ -677,7 +678,6 @@ test('项目级托管：找不到项目时报告 missing，不误加别的应用
       dataDir: dir,
       metricsIntervalMs: 0,
       syncIntervalMs: 0,
-      autoTakeover: false,
       scanImpl: async () => ({ projects: [], diagnostics: [], scannedDirs: 1 }),
     });
     await service.init();
@@ -690,7 +690,7 @@ test('项目级托管：找不到项目时报告 missing，不误加别的应用
   }
 });
 
-test('外部进程接管：停止外部进程、托管项目并启动应用', async () => {
+test('外部进程接管：只停止匹配到的外部进程，再启动对应应用', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dockyard-takeover-'));
   try {
     const project = {
@@ -728,12 +728,12 @@ test('外部进程接管：停止外部进程、托管项目并启动应用', as
       diagnostics: [],
     };
     /** @type {number[]} */
+    /** @type {number[]} */
     const stoppedPids = [];
     const service = new DockyardService({
       dataDir: dir,
       metricsIntervalMs: 0,
       syncIntervalMs: 0,
-      autoTakeover: false,
       scanImpl: async () => ({
         projects: [/** @type {any} */ (project)],
         diagnostics: [],
@@ -761,11 +761,11 @@ test('外部进程接管：停止外部进程、托管项目并启动应用', as
       },
     });
     await service.init();
+    await service.addProject(/** @type {any} */ (project));
 
-    const result = await service.takeoverProjectFromScan('project:/p', ['/p']);
-    assert.equal(result.takenOver, true, result.reason);
+    const result = await service.takeoverProjectFromScan('project:/p');
+    assert.equal(result.takenOver, 1, result.reason);
     assert.deepEqual(result.stoppedPids, [99999]);
-    assert.equal(result.appsAdded, 1);
     assert.equal(result.started.length, 1);
     assert.deepEqual(stoppedPids, [99999]);
 
@@ -828,7 +828,6 @@ test('周期同步：新增应用、命令变化保留旧参数、失联标记�
       dataDir: dir,
       metricsIntervalMs: 0,
       syncIntervalMs: 0,
-      autoTakeover: false,
       syncOnStart: false,
       scanImpl: async () => ({
         projects: [/** @type {any} */ (makeProject(currentApps))],
@@ -873,87 +872,6 @@ test('周期同步：新增应用、命令变化保留旧参数、失联标记�
   }
 });
 
-test('自动接管：默认开启时发现外部进程会直接停止并启动托管应用', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dockyard-auto-takeover-'));
-  try {
-    const project = {
-      id: 'project:/auto',
-      name: 'auto',
-      root: dir,
-      source: 'git',
-      container: null,
-      ecosystems: [
-        {
-          id: 'node-npm',
-          name: 'Node.js (npm)',
-          language: 'Node.js',
-          manager: 'npm',
-          apps: [
-            {
-              id: 'node:auto:dev',
-              name: 'auto-app',
-              dir,
-              runner: 'node',
-              command: process.execPath,
-              args: ['-e', 'setInterval(() => {}, 1000);'],
-              reason: 'test',
-              projectId: 'project:/auto',
-              projectName: 'auto',
-              projectRoot: dir,
-              ecosystemId: 'node-npm',
-              ecosystemName: 'Node.js (npm)',
-              language: 'Node.js',
-              manager: 'npm',
-            },
-          ],
-        },
-      ],
-      diagnostics: [],
-    };
-    const service = new DockyardService({
-      dataDir: dir,
-      metricsIntervalMs: 0,
-      syncIntervalMs: 0,
-      autoTakeoverIntervalMs: 0,
-      autoTakeover: true,
-      scanImpl: async () => ({
-        projects: [/** @type {any} */ (project)],
-        diagnostics: [],
-        scannedDirs: 1,
-      }),
-      processLister: async () => ({
-        processes: [
-          {
-            pid: 99998,
-            ppid: 1,
-            pgid: 99998,
-            cpuPercent: 1,
-            rssBytes: 1024,
-            command: 'node apps/auto',
-            cwd: dir,
-            ports: [3000],
-            root: dir,
-          },
-        ],
-        error: '',
-      }),
-      terminateImpl: async () => ({ stopped: true, reason: 'test' }),
-    });
-    await service.init();
-    await service.addProject(/** @type {any} */ (project));
-
-    const summary = await service.autoTakeoverOnce();
-    assert.equal(summary.takenOver, 1);
-    assert.ok(service.lastAutoTakeover);
-    assert.equal(service.lastAutoTakeover.projectName, 'auto');
-    const apps = await service.list();
-    assert.equal(apps[0]?.status, 'running');
-    await service.stop('node:auto:dev');
-  } finally {
-    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
-  }
-});
-
 test('资源趋势：每轮采样后聚合运行中应用的 CPU/RSS 总量', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dockyard-resource-history-'));
   try {
@@ -961,7 +879,6 @@ test('资源趋势：每轮采样后聚合运行中应用的 CPU/RSS 总量', as
       dataDir: dir,
       metricsIntervalMs: 0,
       syncIntervalMs: 0,
-      autoTakeover: false,
       scanImpl: async () => ({ projects: [], diagnostics: [], scannedDirs: 0 }),
     });
     await service.init();
@@ -982,6 +899,172 @@ test('资源趋势：每轮采样后聚合运行中应用的 CPU/RSS 总量', as
 
     await service.sampleMetricsNow();
     assert.equal(service.resourceHistory.length, 2);
+  } finally {
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});
+
+test('非托管应用可以被停止：只终止外部进程，不启动应用', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-stop-external-'));
+  try {
+    const project = {
+      id: 'project:/p',
+      name: 'p',
+      root: dir,
+      source: 'git',
+      container: null,
+      ecosystems: [
+        {
+          id: 'node-npm',
+          name: 'Node.js (npm)',
+          language: 'Node.js',
+          manager: 'npm',
+          apps: [
+            {
+              id: 'node:external-stop:dev',
+              name: 'external-stop',
+              dir,
+              runner: 'node',
+              command: process.execPath,
+              args: ['-e', 'setInterval(() => {}, 1000);'],
+              reason: 'test',
+              projectId: 'project:/p',
+              projectName: 'p',
+              projectRoot: dir,
+              ecosystemId: 'node-npm',
+              ecosystemName: 'Node.js (npm)',
+              language: 'Node.js',
+              manager: 'npm',
+            },
+          ],
+        },
+      ],
+      diagnostics: [],
+    };
+    /** @type {number[]} */
+    const stoppedPids = [];
+    const service = new DockyardService({
+      dataDir: dir,
+      metricsIntervalMs: 0,
+      syncIntervalMs: 0,
+      scanImpl: async () => ({
+        projects: [/** @type {any} */ (project)],
+        diagnostics: [],
+        scannedDirs: 1,
+      }),
+      processLister: async () => ({
+        processes: [
+          {
+            pid: 88888,
+            ppid: 1,
+            pgid: 88888,
+            cpuPercent: 1,
+            rssBytes: 1024,
+            command: 'node apps/external',
+            cwd: dir,
+            ports: [3000],
+            root: dir,
+          },
+        ],
+        error: '',
+      }),
+      terminateImpl: async (item) => {
+        stoppedPids.push(item.pid);
+        return { stopped: true, reason: 'test' };
+      },
+    });
+    await service.init();
+    await service.addProject(/** @type {any} */ (project));
+
+    const result = await service.stop('node:external-stop:dev');
+    assert.equal(result.stopped, true, result.reason);
+    assert.deepEqual(stoppedPids, [88888]);
+    const app = pick(await service.list(), 'node:external-stop:dev');
+    assert.equal(app.status, 'stopped');
+    assert.equal(app.pid, undefined);
+  } finally {
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});
+
+test('非托管应用重启等价于接管：停止外部进程后由 dockyard 启动', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-restart-external-'));
+  try {
+    const project = {
+      id: 'project:/p',
+      name: 'p',
+      root: dir,
+      source: 'git',
+      container: null,
+      ecosystems: [
+        {
+          id: 'node-npm',
+          name: 'Node.js (npm)',
+          language: 'Node.js',
+          manager: 'npm',
+          apps: [
+            {
+              id: 'node:external-restart:dev',
+              name: 'external-restart',
+              dir,
+              runner: 'node',
+              command: process.execPath,
+              args: ['-e', 'setInterval(() => {}, 1000);'],
+              reason: 'test',
+              projectId: 'project:/p',
+              projectName: 'p',
+              projectRoot: dir,
+              ecosystemId: 'node-npm',
+              ecosystemName: 'Node.js (npm)',
+              language: 'Node.js',
+              manager: 'npm',
+            },
+          ],
+        },
+      ],
+      diagnostics: [],
+    };
+    /** @type {number[]} */
+    const stoppedPids = [];
+    const service = new DockyardService({
+      dataDir: dir,
+      metricsIntervalMs: 0,
+      syncIntervalMs: 0,
+      scanImpl: async () => ({
+        projects: [/** @type {any} */ (project)],
+        diagnostics: [],
+        scannedDirs: 1,
+      }),
+      processLister: async () => ({
+        processes: [
+          {
+            pid: 77777,
+            ppid: 1,
+            pgid: 77777,
+            cpuPercent: 1,
+            rssBytes: 1024,
+            command: 'node apps/external',
+            cwd: dir,
+            ports: [3000],
+            root: dir,
+          },
+        ],
+        error: '',
+      }),
+      terminateImpl: async (item) => {
+        stoppedPids.push(item.pid);
+        return { stopped: true, reason: 'test' };
+      },
+    });
+    await service.init();
+    await service.addProject(/** @type {any} */ (project));
+
+    const result = await service.restart('node:external-restart:dev');
+    assert.equal(result.restarted, true, result.reason);
+    assert.deepEqual(stoppedPids, [77777]);
+    const app = pick(await service.list(), 'node:external-restart:dev');
+    assert.equal(app.status, 'running');
+    await service.stop('node:external-restart:dev');
   } finally {
     await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }

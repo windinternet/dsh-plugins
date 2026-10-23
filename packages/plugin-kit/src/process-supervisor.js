@@ -16,6 +16,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { closeSync, openSync } from 'node:fs';
 
 /**
  * @typedef {'starting'|'running'|'stopping'|'stopped'|'crashed'} ProcessStatus
@@ -32,6 +33,8 @@ import { spawn } from 'node:child_process';
  * @property {(status: ProcessStatus, detail: { code: number|null, signal: string|null }) => void} [onExit]
  * @property {boolean} [isolateProcessGroup] 是否让子进程成为独立进程组，默认 true。
  *   只有在调用方已经确保子进程处于自成一组的场合才可以关闭它。
+ * @property {string} [logFile] 把 stdout/stderr 直接追加到该文件，而不是用管道。
+ *   提供它之后，父进程退出不会关闭子进程的输出通道，也不会留下悬空的管道。
  */
 
 /**
@@ -129,20 +132,33 @@ export async function startSupervisedProcess(options) {
     onOutput,
     onExit,
     isolateProcessGroup = true,
+    logFile,
   } = options;
   if (!id || typeof id !== 'string') throw new TypeError('id 必须是非空字符串');
   if (!command || typeof command !== 'string') throw new TypeError('command 必须是非空字符串');
   if (!cwd || typeof cwd !== 'string') throw new TypeError('cwd 必须是非空字符串');
 
-  const child = spawn(command, args, {
-    cwd,
-    env: { ...process.env, ...env },
-    // 自成进程组：调用方退出不影响它，停止时能回收整组。
-    // 这一点很重要——如果子进程与调用方同组（例如某些测试运行器就是这样），
-    // 对 -pid 发信号会打到调用方自己所在的进程组，把无关进程一并杀掉。
-    detached: isolateProcessGroup,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  /** @type {number | undefined} */
+  let logFd;
+  if (logFile) {
+    // 直接写文件而不是管道：父进程退出后子进程仍能继续写日志，
+    // 也不会因为管道读端消失而收到 EPIPE。这是“应用不随 DSH 关闭”的关键。
+    logFd = openSync(logFile, 'a');
+  }
+  let child;
+  try {
+    child = spawn(command, args, {
+      cwd,
+      env: { ...process.env, ...env },
+      // 自成进程组：调用方退出不影响它，停止时能回收整组。
+      // 这一点很重要——如果子进程与调用方同组（例如某些测试运行器就是这样），
+      // 对 -pid 发信号会打到调用方自己所在的进程组，把无关进程一并杀掉。
+      detached: isolateProcessGroup,
+      stdio: logFile ? ['ignore', logFd, logFd] : ['ignore', 'pipe', 'pipe'],
+    });
+  } finally {
+    if (logFd !== undefined) closeSync(logFd);
+  }
 
   /** @type {SupervisedProcess} */
   const record = {
@@ -158,8 +174,10 @@ export async function startSupervisedProcess(options) {
 
   // 让父进程的事件循环不因为这个子进程而被拖住
   child.unref();
-  if (child.stdout) child.stdout.setEncoding('utf8');
-  if (child.stderr) child.stderr.setEncoding('utf8');
+  if (!logFile) {
+    if (child.stdout) child.stdout.setEncoding('utf8');
+    if (child.stderr) child.stderr.setEncoding('utf8');
+  }
 
   await new Promise((resolve, reject) => {
     /** @param {Error} error */
@@ -176,8 +194,10 @@ export async function startSupervisedProcess(options) {
     });
   });
 
-  child.stdout?.on('data', (chunk) => onOutput?.('stdout', String(chunk)));
-  child.stderr?.on('data', (chunk) => onOutput?.('stderr', String(chunk)));
+  if (!logFile) {
+    child.stdout?.on('data', (chunk) => onOutput?.('stdout', String(chunk)));
+    child.stderr?.on('data', (chunk) => onOutput?.('stderr', String(chunk)));
+  }
 
   child.once('exit', (code, signal) => {
     // 只有在不是我们自己请求停止时，才算异常退出
