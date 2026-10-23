@@ -112,6 +112,13 @@ export class DockyardService {
     this.metrics = new Map();
     /** @type {Map<string, { at: number, cpuPercent: number, rssBytes: number }[]>} */
     this.metricsHistory = new Map();
+    /**
+     * 按采样周期聚合的资源总量，供概览的趋势图使用。
+     * 只保留最近 288 个点（默认 5 秒采样约 24 分钟），不落盘：
+     * 它是观测快照，不是业务状态，重启后从空开始比恢复一份过期数据更诚实。
+     * @type {{ at: number, cpuPercent: number, rssBytes: number, apps: number }[]}
+     */
+    this.resourceHistory = [];
     /** @type {ReturnType<typeof setInterval> | null} */
     this.metricsTimer = null;
     this.metricsSampling = false;
@@ -487,10 +494,12 @@ export class DockyardService {
   async sampleMetricsNow() {
     if (this.metricsSampling) return;
     this.metricsSampling = true;
+    let sampled = 0;
     try {
       for (const [id, handle] of this.processes) {
         const sample = await this.sampleProcessImpl(handle.pid);
         if (!sample) continue;
+        sampled += 1;
         this.metrics.set(id, sample);
         const history = this.metricsHistory.get(id) ?? [];
         history.push({
@@ -501,6 +510,28 @@ export class DockyardService {
         if (history.length > 288) history.splice(0, history.length - 288);
         this.metricsHistory.set(id, history);
         await this.#appendMetric(id, sample);
+      }
+      // 只有本轮真的采到样本才追加聚合点，避免把上一轮的旧值当成新趋势。
+      if (sampled > 0) {
+        let cpuPercent = 0;
+        let rssBytes = 0;
+        let apps = 0;
+        for (const id of this.processes.keys()) {
+          const sample = this.metrics.get(id);
+          if (!sample) continue;
+          cpuPercent += sample.cpuPercent;
+          rssBytes += sample.rssBytes;
+          apps += 1;
+        }
+        this.resourceHistory.push({
+          at: Date.now(),
+          cpuPercent: Math.round(cpuPercent * 10) / 10,
+          rssBytes,
+          apps,
+        });
+        if (this.resourceHistory.length > 288) {
+          this.resourceHistory.splice(0, this.resourceHistory.length - 288);
+        }
       }
     } finally {
       this.metricsSampling = false;

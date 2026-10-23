@@ -953,3 +953,36 @@ test('自动接管：默认开启时发现外部进程会直接停止并启动�
     await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 });
+
+test('资源趋势：每轮采样后聚合运行中应用的 CPU/RSS 总量', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-resource-history-'));
+  try {
+    const service = new DockyardService({
+      dataDir: dir,
+      metricsIntervalMs: 0,
+      syncIntervalMs: 0,
+      autoTakeover: false,
+      scanImpl: async () => ({ projects: [], diagnostics: [], scannedDirs: 0 }),
+    });
+    await service.init();
+    service.processes.set('a', /** @type {any} */ ({ pid: 111 }));
+    service.processes.set('b', /** @type {any} */ ({ pid: 222 }));
+    service.sampleProcessImpl = async (pid) => ({
+      cpuPercent: pid === 111 ? 12.5 : 7.5,
+      rssBytes: pid === 111 ? 500 : 300,
+      processCount: 1,
+      at: Date.now(),
+    });
+
+    await service.sampleMetricsNow();
+    assert.equal(service.resourceHistory.length, 1);
+    assert.equal(service.resourceHistory[0]?.cpuPercent, 20);
+    assert.equal(service.resourceHistory[0]?.rssBytes, 800);
+    assert.equal(service.resourceHistory[0]?.apps, 2);
+
+    await service.sampleMetricsNow();
+    assert.equal(service.resourceHistory.length, 2);
+  } finally {
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});

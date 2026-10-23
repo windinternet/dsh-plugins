@@ -63,10 +63,123 @@ window.__ModuleLoader__.load({
         panel: '服务坞',
         pageTitle: '服务坞',
         pageSubtitle: '本机开发服务的可观测托管台',
+        lastSyncAt: '最后同步 {time}',
         tabOverview: '概览',
         tabServices: '服务',
         tabDiscover: '发现',
         tabLogs: '日志',
+        tabOverviewMetrics: '概览·指标',
+        tabOverviewHealth: '概览·健康',
+        ovSectionOverview: '运行概况',
+        ovSectionOverviewHint: '服务生命周期、规模与资源的一次性快照',
+        ovMetricCount: '{count} 项指标',
+        ovUpdatedAt: '更新于 {time} · 每 5 秒刷新',
+        ovGroupStatus: '服务状态',
+        ovGroupStatusMeta: '{apps} 个应用 · {projects} 个项目',
+        ovGroupScale: '规模与构成',
+        ovGroupScaleMeta: '按已托管应用统计',
+        ovGroupResources: '资源与运行',
+        ovGroupResourcesMeta: '近似采样，见脚注',
+        ovLabelAttention: '需关注',
+        ovLabelApps: '应用',
+        ovLabelLanguages: '语言',
+        ovLabelManagers: '包管理器',
+        ovLabelAvgUptime: '平均运行时长',
+        ovLabelLongest: '最长运行',
+        ovAttentionHint: '异常 {crashed} · 失联 {missing} · 需重启 {restart}',
+        ovCrashedHint: '优先排查',
+        ovStoppedHint: '{count} 个应用可随时启动',
+        ovStatProjectsHint: '{apps} 个应用 · 平均 {avg} 个/项目',
+        ovStatAppsHint: '{running} 运行中 · {idle} 未运行',
+        ovStatLanguagesHint: '{name} {count} 个应用最多',
+        ovStatManagersHint: '{name} {count} 个应用最多',
+        ovStatCpuHint: '峰值 {peak} · {running} 个运行中',
+        ovStatMemoryHint: '占宿主 {percent} · 峰值 {peak}',
+        ovStatAvgUptimeHint: '{running} 个运行中应用',
+        ovStatLongestHint: '{name} 持续在线',
+        ovSectionDistribution: '构成与分布',
+        ovSectionDistributionHint: '状态、语言、包管理器与技术栈，口径一致',
+        ovSectionDistributionMeta: '共 {count} 个应用',
+        ovStatusTitle: '状态构成',
+        ovStatusSubtitle: '按应用真实状态统计',
+        ovStatusMeta: '{count} 个应用',
+        ovStatusOverlay: '叠加状态：',
+        ovStatusMissing: '失联 {count}',
+        ovStatusRestart: '需重启 {count}',
+        ovStatusRunRate: '应用运行率',
+        ovLanguageTitle: '语言分布',
+        ovLanguageSubtitle: '按已托管应用的语言分组',
+        ovLanguageFootnote: '实心段 = 运行中；半透明段 = 未运行。',
+        ovManagerTitle: '包管理器分布',
+        ovManagerSubtitle: '按应用实际使用的启动管理器',
+        ovManagerFootnote: '“未声明”是识别不到管理器的 Shell 等入口，不代表操作系统包管理器。',
+        ovManagerUndeclared: '未声明',
+        ovDistKinds: '{count} 种',
+        ovDistSub: '{running} 运行 · {projects} 项目',
+        ovDistTitle: '{name}：{count} 个应用，{running} 个运行中',
+        ovTechTitle: '技术栈分布',
+        ovTechSubtitle: '语言 × 包管理器的组合',
+        ovTechKinds: '{count} 种',
+        ovTechFoot: '{name} 占比 {percent}，覆盖 {projects} 个项目。',
+        ovTechEmpty: '暂无技术栈数据。',
+        ovTechAria: '技术栈分布：{detail}',
+        ovResourceTitle: '资源趋势',
+        ovResourceSubtitle: '最近 5 分钟 · {count} 次采样',
+        ovResourceInterval: '5s / 次',
+        ovResourceCpu: 'CPU',
+        ovResourceMemory: '内存',
+        ovResourcePeak: '峰值 {value}',
+        ovResourceFootnote: '进程组采样：CPU 可超过 100%，RSS 为进程组求和的上界。',
+        ovResourceEmpty: '暂无采样',
+        ovHostTitle: '宿主系统',
+        ovHostSubtitle: '本机运行环境',
+        ovHostMemory: '内存占用',
+        ovHostMemoryValue: '{used} / {total} GB',
+        ovHostLoad: '负载 1 / 5 / 15',
+        ovHostCores: '核心',
+        ovHostUptime: '运行时长',
+        ovHostPlatform: '平台',
+        ovHostFootnote: '内存占用含缓存；负载为 1 / 5 / 15 分钟均值。',
+        ovSectionLoad: '负载与排行',
+        ovSectionLoadHint: '项目行标出语言与包管理器，与上方分布对齐',
+        ovLoadMeta: 'CPU 合计 {cpu} · RSS {memory}',
+        ovProjectLoadTitle: '项目负载',
+        ovProjectLoadSubtitle: '按运行中应用数与 CPU 排序',
+        ovProjectLoadMeta: '{projects} 个项目 · {apps} 应用',
+        ovProjectApps: '{count} 应用',
+        ovProjectRunning: '{count} 运行',
+        ovRankCpuTitle: 'CPU 排行',
+        ovRankMemoryTitle: '内存排行',
+        ovRankSubtitle: '运行中应用 Top 5',
+        ovRankCpu: 'CPU',
+        ovRankRss: 'RSS',
+        ovRankFootnote: 'CPU 为进程组采样，可超过 100%；RSS 为上界估计。',
+        ovRankingTitle: '应用排行',
+        ovAttentionTitle: '需要关注',
+        ovAttentionSubtitle: '异常、失联与待重启优先处理',
+        ovAttentionMeta: '按严重程度排序',
+        ovAttentionFoot: '异常与失联优先处理；日志入口见服务页。',
+        ovRunningHint: '按运行时长排序',
+        ovRunningMeta: '每 5 秒刷新',
+        ovActionSync: '同步',
+        ovHealthKicker: '运行健康',
+        ovHealthAppsRunning: '/ {total} 应用运行中',
+        ovHealthRunRate: '运行率 {percent}',
+        ovHealthCrashed: '异常 {count}',
+        ovHealthMissing: '失联 {count}',
+        ovHealthRestart: '需重启 {count}',
+        ovHealthProjects: '项目',
+        ovHealthLanguages: '语言',
+        ovHealthManagers: '包管理器',
+        ovHealthAvgUptime: '平均运行',
+        ovHealthTechSection: '技术构成',
+        ovHealthTechSectionHint: '语言、包管理器与组合栈',
+        ovHealthTechMeta: '{count} 种技术栈',
+        ovHealthResourcesSection: '资源与宿主',
+        ovHealthResourcesHint: '最近 5 分钟趋势，以及本机运行环境',
+        ovHealthResourcesMeta: '5s / 次',
+        ovHealthProjectSection: '项目与排行',
+        ovHealthProjectHint: '项目负载与应用 Top 5',
         refresh: '刷新',
         loading: '加载中…',
         unavailable: '状态不可用',
@@ -230,10 +343,124 @@ window.__ModuleLoader__.load({
         panel: 'Dockyard',
         pageTitle: 'Dockyard',
         pageSubtitle: 'Observe and supervise local development services',
+        lastSyncAt: 'Last sync {time}',
         tabOverview: 'Overview',
         tabServices: 'Services',
         tabDiscover: 'Discover',
         tabLogs: 'Logs',
+        tabOverviewMetrics: 'Overview · Metrics',
+        tabOverviewHealth: 'Overview · Health',
+        ovSectionOverview: 'At a glance',
+        ovSectionOverviewHint: 'Lifecycle, scale and resources in one snapshot',
+        ovMetricCount: '{count} metrics',
+        ovUpdatedAt: 'Updated {time} · every 5s',
+        ovGroupStatus: 'Service status',
+        ovGroupStatusMeta: '{apps} apps · {projects} projects',
+        ovGroupScale: 'Scale & mix',
+        ovGroupScaleMeta: 'Across hosted apps',
+        ovGroupResources: 'Resources & uptime',
+        ovGroupResourcesMeta: 'Approximate samples, see footnote',
+        ovLabelAttention: 'Attention',
+        ovLabelApps: 'Apps',
+        ovLabelLanguages: 'Languages',
+        ovLabelManagers: 'Package managers',
+        ovLabelAvgUptime: 'Avg uptime',
+        ovLabelLongest: 'Longest uptime',
+        ovAttentionHint: 'Crashed {crashed} · missing {missing} · restart {restart}',
+        ovCrashedHint: 'Investigate first',
+        ovStoppedHint: '{count} apps can start anytime',
+        ovStatProjectsHint: '{apps} apps · {avg} per project',
+        ovStatAppsHint: '{running} running · {idle} idle',
+        ovStatLanguagesHint: '{name} leads with {count} apps',
+        ovStatManagersHint: '{name} leads with {count} apps',
+        ovStatCpuHint: 'Peak {peak} · {running} running',
+        ovStatMemoryHint: '{percent} of host · peak {peak}',
+        ovStatAvgUptimeHint: 'Across {running} running apps',
+        ovStatLongestHint: '{name} still online',
+        ovSectionDistribution: 'Composition & distribution',
+        ovSectionDistributionHint: 'Status, language, package manager and stack share one scope',
+        ovSectionDistributionMeta: '{count} apps total',
+        ovStatusTitle: 'Status composition',
+        ovStatusSubtitle: 'Based on real app status',
+        ovStatusMeta: '{count} apps',
+        ovStatusOverlay: 'Overlays:',
+        ovStatusMissing: 'Missing {count}',
+        ovStatusRestart: 'Restart {count}',
+        ovStatusRunRate: 'App run rate',
+        ovLanguageTitle: 'Language distribution',
+        ovLanguageSubtitle: 'Grouped by hosted app language',
+        ovLanguageFootnote: 'Solid = running; translucent = not running.',
+        ovManagerTitle: 'Package manager distribution',
+        ovManagerSubtitle: 'By the manager each app actually starts with',
+        ovManagerFootnote:
+          '“Undeclared” means no manager was detected (e.g. a Shell entry), not the OS package manager.',
+        ovManagerUndeclared: 'Undeclared',
+        ovDistKinds: '{count} kinds',
+        ovDistSub: '{running} running · {projects} projects',
+        ovDistTitle: '{name}: {count} apps, {running} running',
+        ovTechTitle: 'Stack distribution',
+        ovTechSubtitle: 'Language × package manager combinations',
+        ovTechKinds: '{count} kinds',
+        ovTechFoot: '{name} takes {percent}, covering {projects} projects.',
+        ovTechEmpty: 'No stack data yet.',
+        ovTechAria: 'Stack distribution: {detail}',
+        ovResourceTitle: 'Resource trend',
+        ovResourceSubtitle: 'Last 5 minutes · {count} samples',
+        ovResourceInterval: 'every 5s',
+        ovResourceCpu: 'CPU',
+        ovResourceMemory: 'Memory',
+        ovResourcePeak: 'Peak {value}',
+        ovResourceFootnote: 'Process-group sampling: CPU can exceed 100%, RSS is an upper bound.',
+        ovResourceEmpty: 'No samples yet',
+        ovHostTitle: 'Host system',
+        ovHostSubtitle: 'Local runtime',
+        ovHostMemory: 'Memory used',
+        ovHostMemoryValue: '{used} / {total} GB',
+        ovHostLoad: 'Load 1 / 5 / 15',
+        ovHostCores: 'Cores',
+        ovHostUptime: 'Uptime',
+        ovHostPlatform: 'Platform',
+        ovHostFootnote: 'Memory used includes cache; load is the 1 / 5 / 15 minute average.',
+        ovSectionLoad: 'Load & rankings',
+        ovSectionLoadHint: 'Project rows carry language and package-manager tags',
+        ovLoadMeta: 'CPU total {cpu} · RSS {memory}',
+        ovProjectLoadTitle: 'Project load',
+        ovProjectLoadSubtitle: 'Sorted by running apps and CPU',
+        ovProjectLoadMeta: '{projects} projects · {apps} apps',
+        ovProjectApps: '{count} apps',
+        ovProjectRunning: '{count} running',
+        ovRankCpuTitle: 'CPU ranking',
+        ovRankMemoryTitle: 'Memory ranking',
+        ovRankSubtitle: 'Top 5 running apps',
+        ovRankCpu: 'CPU',
+        ovRankRss: 'RSS',
+        ovRankFootnote: 'CPU comes from process-group sampling; RSS is an upper bound.',
+        ovRankingTitle: 'App ranking',
+        ovAttentionTitle: 'Needs attention',
+        ovAttentionSubtitle: 'Crashed, missing and restart-required first',
+        ovAttentionMeta: 'Sorted by severity',
+        ovAttentionFoot: 'Crashed and missing first; log entries live on the Services tab.',
+        ovRunningHint: 'Sorted by uptime',
+        ovRunningMeta: 'Refreshes every 5s',
+        ovActionSync: 'Sync',
+        ovHealthKicker: 'Runtime health',
+        ovHealthAppsRunning: '/ {total} apps running',
+        ovHealthRunRate: 'Run rate {percent}',
+        ovHealthCrashed: 'Crashed {count}',
+        ovHealthMissing: 'Missing {count}',
+        ovHealthRestart: 'Restart {count}',
+        ovHealthProjects: 'Projects',
+        ovHealthLanguages: 'Languages',
+        ovHealthManagers: 'Managers',
+        ovHealthAvgUptime: 'Avg uptime',
+        ovHealthTechSection: 'Stack mix',
+        ovHealthTechSectionHint: 'Languages, package managers and combinations',
+        ovHealthTechMeta: '{count} stacks',
+        ovHealthResourcesSection: 'Resources & host',
+        ovHealthResourcesHint: 'Last 5-minute trend and the local runtime',
+        ovHealthResourcesMeta: 'every 5s',
+        ovHealthProjectSection: 'Projects & rankings',
+        ovHealthProjectHint: 'Project load and the app Top 5',
         refresh: 'Refresh',
         loading: 'Loading…',
         unavailable: 'Status unavailable',
@@ -488,7 +715,7 @@ window.__ModuleLoader__.load({
     /**
      * 读一次状态快照。
      * @param {AbortSignal} [signal]
-     * @returns {Promise<{ applications: any[], projects: any[], system: any, preferences: { statusBar: boolean }, warnings: string[], scanRoots: string[] }>}
+     * @returns {Promise<{ generatedAt: number, applications: any[], projects: any[], system: any, resourceHistory: { at: number, cpuPercent: number, rssBytes: number }[], preferences: { statusBar: boolean }, warnings: string[], scanRoots: string[] }>}
      */
     async function fetchStatus(signal) {
       const response = await fetch(STATUS_ROUTE, {
@@ -503,9 +730,27 @@ window.__ModuleLoader__.load({
         );
       }
       return {
+        generatedAt: Number(body.generatedAt) || Date.now(),
         applications: Array.isArray(body.applications) ? body.applications : [],
         projects: Array.isArray(body.projects) ? body.projects : [],
         system: body.system && typeof body.system === 'object' ? body.system : null,
+        // 旧 Host 没有趋势聚合字段时给空数组，趋势卡显示"暂无采样"而不是伪造曲线。
+        resourceHistory: Array.isArray(body.resourceHistory)
+          ? body.resourceHistory
+              .filter(
+                (item) =>
+                  item &&
+                  typeof item === 'object' &&
+                  Number.isFinite(item.at) &&
+                  Number.isFinite(item.cpuPercent) &&
+                  Number.isFinite(item.rssBytes),
+              )
+              .map((item) => ({
+                at: Number(item.at),
+                cpuPercent: Number(item.cpuPercent),
+                rssBytes: Number(item.rssBytes),
+              }))
+          : [],
         // 旧 Host 不返回 preferences 时保持"展示"，避免升级瞬间界面突然少一块。
         preferences: {
           statusBar:
@@ -1701,6 +1946,1035 @@ window.__ModuleLoader__.load({
   .dy-bar-res { display: none; }
   .dy-bar-health { flex: 1 1 auto; justify-content: space-between; }
 }
+
+/* ── 概览：指标版 / 健康版 ──────────────────────────────────────────────
+   两个 tab 共用一套卡片、图表与排版。分类色从宿主主题 token 派生，
+   这里不定义第二套主题色；颜色变量集中在 .dy-ov 上。 */
+.dy-ov {
+  container-type: inline-size;
+  container-name: dy-overview;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  --dy-cat-brand: var(--dsw-alias-brand-primary, #4d6bfe);
+  --dy-cat-success: var(--dsw-alias-state-success-primary, #2ea043);
+  --dy-cat-warn: var(--dsw-alias-state-warn-primary, #d29922);
+  --dy-cat-error: var(--dsw-alias-state-error-primary, #f85149);
+  --dy-cat-business: var(--dsw-alias-state-business-primary, #a371f7);
+  --dy-cat-idle: var(--dsw-alias-state-idle-primary, #8b949e);
+  --dy-cat-teal: color-mix(
+    in srgb,
+    var(--dsw-alias-state-success-primary, #2ea043) 55%,
+    var(--dsw-alias-brand-primary, #4d6bfe)
+  );
+  --dy-cat-violet: color-mix(
+    in srgb,
+    var(--dsw-alias-state-business-primary, #a371f7) 55%,
+    var(--dsw-alias-state-warn-primary, #d29922)
+  );
+  --dy-track: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.16));
+  --dy-surface: var(--dsw-alias-bg-layer-1, transparent);
+  --dy-surface-2: var(--dsw-alias-bg-layer-2, transparent);
+  --dy-border: var(--dsw-alias-border-l1, currentColor);
+  --dy-border-strong: var(--dsw-alias-border-l2, currentColor);
+  --dy-text: var(--dsw-alias-label-primary, inherit);
+  --dy-text-2: var(--dsw-alias-label-secondary, inherit);
+  --dy-text-3: var(--dsw-alias-label-tertiary, inherit);
+}
+.dy-ov-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dy-ov-block-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dy-ov-block-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.dy-ov-block-hint {
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: var(--dy-text-3);
+}
+.dy-ov-block-meta {
+  font-size: 10px;
+  color: var(--dy-text-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dy-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-metric-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.dy-ov-metric-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dy-ov-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--dy-text-3);
+}
+.dy-ov-group-line {
+  flex: 1;
+  height: 1px;
+  background: var(--dy-border);
+}
+.dy-ov-group-meta {
+  font-weight: 400;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.dy-ov-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.dy-ov-metric {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 116px;
+  padding: 13px 15px 12px;
+  border: 1px solid var(--dy-border);
+  border-radius: 12px;
+  background: var(--dy-surface);
+}
+.dy-ov-metric::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--dy-tone, var(--dy-border-strong));
+  opacity: 0.85;
+}
+.dy-ov-metric[data-tone='success'] {
+  --dy-tone: var(--dy-cat-success);
+}
+.dy-ov-metric[data-tone='error'] {
+  --dy-tone: var(--dy-cat-error);
+}
+.dy-ov-metric[data-tone='warn'] {
+  --dy-tone: var(--dy-cat-warn);
+}
+.dy-ov-metric[data-tone='idle'] {
+  --dy-tone: var(--dy-cat-idle);
+}
+.dy-ov-metric[data-tone='brand'] {
+  --dy-tone: var(--dy-cat-brand);
+}
+.dy-ov-metric-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dy-ov-metric-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dy-text-2);
+}
+.dy-ov-metric-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--dy-tone, var(--dy-cat-idle));
+  opacity: 0.9;
+}
+.dy-ov-metric-value {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 25px;
+  font-weight: 650;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-metric-unit {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--dy-text-2);
+}
+.dy-ov-metric[data-tone='success'] .dy-ov-metric-value {
+  color: var(--dy-cat-success);
+}
+.dy-ov-metric[data-tone='error'] .dy-ov-metric-value {
+  color: var(--dy-cat-error);
+}
+.dy-ov-metric[data-tone='warn'] .dy-ov-metric-value {
+  color: var(--dy-cat-warn);
+}
+.dy-ov-metric[data-tone='idle'] .dy-ov-metric-value {
+  color: var(--dy-text-2);
+}
+.dy-ov-metric-hint {
+  margin-top: auto;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--dy-text-3);
+}
+.dy-ov-metric-bar {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--dy-track);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.dy-ov-metric-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--dy-tone, var(--dy-cat-brand));
+}
+.dy-ov-metric-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 0 1px;
+}
+.dy-ov-metric-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.dy-ov-grid {
+  display: grid;
+  gap: 12px;
+  align-items: stretch;
+}
+.dy-ov-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.dy-ov-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.dy-ov-grid-tech {
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 0.85fr);
+}
+.dy-ov-grid-health {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(0, 1.2fr);
+}
+.dy-ov-grid-project {
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+}
+.dy-ov-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--dy-border);
+  border-radius: 12px;
+  background: var(--dy-surface);
+}
+.dy-ov-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dy-ov-card-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.dy-ov-card-sub {
+  margin: 3px 0 0;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--dy-text-3);
+}
+.dy-ov-card-side {
+  font-size: 10px;
+  color: var(--dy-text-3);
+  white-space: nowrap;
+}
+.dy-ov-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border: 1px solid var(--dy-border);
+  border-radius: 999px;
+  background: var(--dy-surface-2);
+  color: var(--dy-text-2);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.dy-ov-chip.success {
+  color: var(--dy-cat-success);
+  background: color-mix(in srgb, var(--dy-cat-success) 12%, transparent);
+  border-color: transparent;
+}
+.dy-ov-chip.error {
+  color: var(--dy-cat-error);
+  background: color-mix(in srgb, var(--dy-cat-error) 12%, transparent);
+  border-color: transparent;
+}
+.dy-ov-chip.warn {
+  color: var(--dy-cat-warn);
+  background: color-mix(in srgb, var(--dy-cat-warn) 14%, transparent);
+  border-color: transparent;
+}
+.dy-ov-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--dy-cat-idle);
+}
+.dy-ov-donut-layout {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 148px;
+}
+.dy-ov-donut {
+  position: relative;
+  flex: 0 0 auto;
+}
+.dy-ov-donut svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.dy-ov-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  pointer-events: none;
+}
+.dy-ov-donut-center b {
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-donut-center span {
+  font-size: 9.5px;
+  color: var(--dy-text-3);
+}
+.dy-ov-donut-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.dy-ov-legend-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+.dy-ov-legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.dy-ov-legend-name {
+  color: var(--dy-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dy-ov-legend-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-legend-pct {
+  min-width: 32px;
+  text-align: right;
+  font-size: 10px;
+  color: var(--dy-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-overlay-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--dy-border);
+  font-size: 10px;
+  color: var(--dy-text-3);
+}
+.dy-ov-rate-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px dashed var(--dy-border);
+}
+.dy-ov-rate-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10.5px;
+  color: var(--dy-text-3);
+}
+.dy-ov-rate-head b {
+  color: var(--dy-text);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-meter {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--dy-track);
+  overflow: hidden;
+}
+.dy-ov-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--dy-cat-brand);
+}
+.dy-ov-dist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.dy-ov-dist-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.dy-ov-dist-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 11px;
+}
+.dy-ov-dist-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dy-ov-dist-sub {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--dy-text-3);
+  white-space: nowrap;
+}
+.dy-ov-dist-count {
+  min-width: 14px;
+  margin-left: 5px;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-dist-track {
+  position: relative;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--dy-track);
+  overflow: hidden;
+}
+.dy-ov-dist-fill,
+.dy-ov-dist-run {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: inherit;
+}
+.dy-ov-dist-fill {
+  opacity: 0.22;
+}
+.dy-ov-footnote {
+  margin: auto 0 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--dy-border);
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: var(--dy-text-3);
+}
+.dy-ov-stack-bar {
+  display: flex;
+  gap: 2px;
+  height: 13px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--dy-track);
+}
+.dy-ov-stack-seg {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  flex-basis: 0;
+}
+.dy-ov-tech-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.dy-ov-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--dy-border);
+  border-radius: 999px;
+  background: var(--dy-surface-2);
+  font-size: 10.5px;
+  color: var(--dy-text-2);
+  white-space: nowrap;
+}
+.dy-ov-legend-chip i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.dy-ov-legend-chip b {
+  font-weight: 600;
+  color: var(--dy-text);
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-tech-foot {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px dashed var(--dy-border);
+  font-size: 10px;
+  color: var(--dy-text-3);
+}
+.dy-ov-trend-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dy-ov-trend-block + .dy-ov-trend-block {
+  padding-top: 10px;
+  border-top: 1px dashed var(--dy-border);
+}
+.dy-ov-trend-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+}
+.dy-ov-trend-label {
+  color: var(--dy-text-2);
+}
+.dy-ov-trend-head b {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-trend-peak {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--dy-text-3);
+  white-space: nowrap;
+}
+.dy-ov-spark {
+  display: block;
+  width: 100%;
+  height: 46px;
+  margin-top: 2px;
+}
+.dy-ov-spark-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  margin-top: 2px;
+  border: 1px dashed var(--dy-border);
+  border-radius: 8px;
+  background: var(--dy-surface-2);
+  color: var(--dy-text-3);
+  font-size: 10px;
+}
+.dy-ov-host-mem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dy-ov-host-mem-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+}
+.dy-ov-host-mem-top span {
+  color: var(--dy-text-2);
+}
+.dy-ov-host-mem-top b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-host-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+.dy-ov-host-kv span {
+  display: block;
+  font-size: 9.5px;
+  color: var(--dy-text-3);
+}
+.dy-ov-host-kv b {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-project-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px 106px;
+  align-items: center;
+  gap: 14px;
+}
+.dy-ov-project-main {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.dy-ov-project-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.dy-ov-project-name {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.dy-ov-project-path {
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--dsh-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 9.5px;
+  color: var(--dy-text-3);
+}
+.dy-ov-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.dy-ov-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 17px;
+  padding: 0 6px;
+  border: 1px solid var(--dy-border);
+  border-radius: 5px;
+  background: var(--dy-surface-2);
+  color: var(--dy-text-2);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+.dy-ov-tag-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.dy-ov-tag-mgr {
+  color: var(--dy-text-3);
+}
+.dy-ov-project-bars {
+  display: flex;
+  gap: 4px;
+}
+.dy-ov-mini-meter {
+  flex: 1;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--dy-track);
+  overflow: hidden;
+}
+.dy-ov-mini-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--dy-cat-brand);
+}
+.dy-ov-mini-meter-mem i {
+  background: var(--dy-cat-business);
+}
+.dy-ov-project-meta {
+  text-align: right;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--dy-text-3);
+}
+.dy-ov-project-meta b {
+  color: var(--dy-text);
+  font-weight: 600;
+}
+.dy-ov-project-value {
+  text-align: right;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--dy-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-project-value span {
+  color: var(--dy-text-3);
+}
+.dy-ov-rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dy-ov-rank-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.dy-ov-rank-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 11px;
+}
+.dy-ov-rank-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dy-ov-rank-project {
+  font-size: 9.5px;
+  color: var(--dy-text-3);
+  white-space: nowrap;
+}
+.dy-ov-rank-value {
+  margin-left: auto;
+  color: var(--dy-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dy-ov-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--dy-border);
+  border-radius: 7px;
+  background: var(--dy-surface-2);
+}
+.dy-ov-seg-btn {
+  appearance: none;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dy-text-3);
+  font: inherit;
+  font-size: 10.5px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.dy-ov-seg-btn[aria-pressed='true'] {
+  background: var(--dy-surface);
+  color: var(--dy-text);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+.dy-ov-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--dy-text-3);
+}
+.dy-ov-list-card {
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
+}
+.dy-ov-list-empty {
+  padding: 18px 16px;
+}
+.dy-ov-alert-row,
+.dy-ov-run-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--dy-border);
+}
+.dy-ov-alert-row:first-child,
+.dy-ov-run-row:first-child {
+  border-top: none;
+}
+.dy-ov-alert-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--dy-cat-error) 12%, transparent);
+  color: var(--dy-cat-error);
+}
+.dy-ov-alert-icon-warn {
+  background: color-mix(in srgb, var(--dy-cat-warn) 14%, transparent);
+  color: var(--dy-cat-warn);
+}
+.dy-ov-alert-main,
+.dy-ov-run-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dy-ov-alert-title,
+.dy-ov-run-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 500;
+}
+.dy-ov-alert-meta,
+.dy-ov-run-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--dy-text-3);
+}
+.dy-ov-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+.dy-ov .dy-btn.dy-ov-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+}
+.dy-ov .dy-pill {
+  font-size: 10.5px;
+}
+.dy-ov-run-stats {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 18px;
+}
+.dy-ov-run-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 54px;
+}
+.dy-ov-run-stat b {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-run-stat span {
+  font-size: 9.5px;
+  color: var(--dy-text-3);
+}
+.dy-ov-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) 170px minmax(0, 1fr);
+  align-items: center;
+  gap: 26px;
+  padding: 22px 24px;
+}
+.dy-ov-hero-kicker {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dy-text-3);
+}
+.dy-ov-hero-number {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 7px;
+}
+.dy-ov-hero-number b {
+  font-size: 44px;
+  line-height: 1;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-hero-number span {
+  font-size: 12px;
+  color: var(--dy-text-3);
+}
+.dy-ov-hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.dy-ov-hero-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 16px;
+  padding-top: 13px;
+  border-top: 1px solid var(--dy-border);
+}
+.dy-ov-hero-kpi span {
+  display: block;
+  font-size: 9.5px;
+  color: var(--dy-text-3);
+}
+.dy-ov-hero-kpi b {
+  display: block;
+  margin-top: 1px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dy-ov-hero-donut {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dy-ov-hero-res {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 22px;
+  border-left: 1px solid var(--dy-border);
+  min-width: 0;
+}
+.dy-ov-compact-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dy-ov-compact-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dy-ov-compact-alert + .dy-ov-compact-alert {
+  padding-top: 10px;
+  border-top: 1px solid var(--dy-border);
+}
+.dy-ov-warning-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--dy-text-2);
+}
+@container dy-overview (max-width: 900px) {
+  .dy-ov-metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .dy-ov-grid-3,
+  .dy-ov-grid-2,
+  .dy-ov-grid-tech,
+  .dy-ov-grid-health,
+  .dy-ov-grid-project {
+    grid-template-columns: 1fr;
+  }
+  .dy-ov-hero {
+    grid-template-columns: minmax(0, 1fr) 150px;
+  }
+  .dy-ov-hero-res {
+    grid-column: 1 / -1;
+    padding: 14px 0 0;
+    border-top: 1px solid var(--dy-border);
+    border-left: none;
+  }
+  .dy-ov-project-row {
+    grid-template-columns: minmax(0, 1fr) 76px;
+  }
+  .dy-ov-project-value {
+    display: none;
+  }
+}
+@container dy-overview (max-width: 620px) {
+  .dy-ov-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dy-ov-hero {
+    grid-template-columns: 1fr;
+  }
+  .dy-ov-hero-donut {
+    justify-content: flex-start;
+  }
+  .dy-ov-donut-layout {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .dy-ov-project-path {
+    display: none;
+  }
+  .dy-ov-run-stats {
+    gap: 10px;
+  }
+  .dy-ov-run-meta {
+    display: none;
+  }
+  .dy-ov-alert-row,
+  .dy-ov-run-row {
+    flex-wrap: wrap;
+  }
+  .dy-ov-row-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
 `;
 
     /**
@@ -1770,23 +3044,1922 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 概览：统计、需要关注的服务、正在运行的服务。
-     * @param {any} props
+     * 概览专用格式化：保留两位小数的大小，与设计稿一致。
+     * 现有 formatBytes 只保留一位小数，服务页继续用它，概览这里单独一套。
+     * @param {number | undefined} bytes
+     * @returns {string}
+     */
+    function formatSizeDetailed(bytes) {
+      if (!Number.isFinite(bytes) || Number(bytes) <= 0) return '0 B';
+      const value = Number(bytes);
+      if (value >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(2)} GB`;
+      if (value >= 1024 ** 2) return `${Math.round(value / 1024 ** 2)} MB`;
+      if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+      return `${Math.round(value)} B`;
+    }
+
+    /**
+     * 把字节拆成"数值 + 单位"，供指标卡的两个字号使用。
+     * @param {number | undefined} bytes
+     * @returns {{ value: string, unit: string }}
+     */
+    function sizeParts(bytes) {
+      if (!Number.isFinite(bytes) || Number(bytes) <= 0) return { value: '0', unit: 'B' };
+      const value = Number(bytes);
+      if (value >= 1024 ** 3) return { value: (value / 1024 ** 3).toFixed(2), unit: 'GB' };
+      if (value >= 1024 ** 2) return { value: String(Math.round(value / 1024 ** 2)), unit: 'MB' };
+      if (value >= 1024) return { value: String(Math.round(value / 1024)), unit: 'KB' };
+      return { value: String(Math.round(value)), unit: 'B' };
+    }
+
+    /**
+     * 毫秒拆成"小时 + 分钟"两段；分钟部分补零，和设计稿的 3h 08m 一致。
+     * @param {number | undefined} ms
+     * @returns {{ value: string, unit: string }}
+     */
+    function durationParts(ms) {
+      if (!Number.isFinite(ms) || Number(ms) <= 0) return { value: '—', unit: '' };
+      const minutes = Math.floor(Number(ms) / 60000);
+      if (minutes < 60) return { value: `${minutes}m`, unit: '' };
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) {
+        return { value: `${hours}h`, unit: `${String(minutes % 60).padStart(2, '0')}m` };
+      }
+      const days = Math.floor(hours / 24);
+      return { value: `${days}d`, unit: `${String(hours % 24).padStart(2, '0')}h` };
+    }
+
+    /**
+     * @param {number | undefined} ms
+     * @param {(key: string) => string} t
+     * @returns {string}
+     */
+    function formatDurationDetailed(ms, t) {
+      const parts = durationParts(ms);
+      if (parts.value === '—') return t('never');
+      return parts.unit === '' ? parts.value : `${parts.value} ${parts.unit}`;
+    }
+
+    /**
+     * 分布图用整数百分比，避免 45.45% 这种噪音。
+     * @param {number | undefined} value
+     * @param {string} never
+     * @returns {string}
+     */
+    function formatWholePercent(value, never) {
+      return Number.isFinite(value) ? `${Math.round(Number(value))}%` : never;
+    }
+
+    /** @param {number | undefined} value */
+    function clampPercent(value) {
+      if (!Number.isFinite(value)) return 0;
+      return Math.max(0, Math.min(100, Number(value)));
+    }
+
+    /**
+     * @param {number} value
+     * @returns {string}
+     */
+    function formatClock(value) {
+      const date = new Date(Number(value) || Date.now());
+      return [date.getHours(), date.getMinutes(), date.getSeconds()]
+        .map((part) => String(part).padStart(2, '0'))
+        .join(':');
+    }
+
+    /** @param {string | undefined} platform */
+    function platformLabel(platform) {
+      if (platform === 'darwin') return 'macOS';
+      if (platform === 'win32') return 'Windows';
+      if (platform === 'linux') return 'Linux';
+      return platform || '—';
+    }
+
+    /** 语言 → 主题 token 派生的分类色。不写死字面色，跟随宿主明暗主题。 */
+    const OVERVIEW_LANGUAGE_COLORS = {
+      Java: '--dy-cat-warn',
+      'Node.js': '--dy-cat-success',
+      Python: '--dy-cat-brand',
+      Go: '--dy-cat-business',
+      Flutter: '--dy-cat-teal',
+      PHP: '--dy-cat-violet',
+      Rust: '--dy-cat-error',
+      Shell: '--dy-cat-idle',
+    };
+
+    /** 包管理器 → 分类色；同一个语言下的 npm/pnpm/yarn 不共用一种颜色。 */
+    const OVERVIEW_MANAGER_COLORS = {
+      pnpm: '--dy-cat-success',
+      npm: '--dy-cat-warn',
+      yarn: '--dy-cat-brand',
+      bun: '--dy-cat-business',
+      Maven: '--dy-cat-warn',
+      Gradle: '--dy-cat-business',
+      uv: '--dy-cat-brand',
+      poetry: '--dy-cat-violet',
+      pip: '--dy-cat-teal',
+      Composer: '--dy-cat-violet',
+      pub: '--dy-cat-teal',
+      'Go Modules': '--dy-cat-business',
+      Cargo: '--dy-cat-error',
+      '—': '--dy-cat-idle',
+    };
+
+    /**
+     * @param {Record<string, string>} map
+     * @param {string} name
+     * @returns {string}
+     */
+    function categoryColor(map, name) {
+      const variable = map[name] ?? '--dy-cat-idle';
+      return `var(${variable})`;
+    }
+
+    /**
+     * 按某个字段把应用分组，并统计应用数、运行中数量与覆盖项目数。
+     * 空值单列成"未知"，不合并进任何真实分类。
+     * @param {any[]} apps
+     * @param {string} field
+     * @returns {{ name: string, count: number, running: number, projects: number, language: string }[]}
+     */
+    function groupOverviewApps(apps, field) {
+      /** @type {Map<string, { name: string, count: number, running: number, projects: Set<string>, language: string }>} */
+      const groups = new Map();
+      for (const app of apps) {
+        const raw = app[field];
+        const name = typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : '';
+        const key = name === '' ? '__unknown__' : name;
+        let group = groups.get(key);
+        if (!group) {
+          group = {
+            name,
+            count: 0,
+            running: 0,
+            projects: new Set(),
+            language: typeof app.language === 'string' ? app.language : '',
+          };
+          groups.set(key, group);
+        }
+        group.count += 1;
+        if (app.status === 'running') group.running += 1;
+        group.projects.add(app.projectId ?? 'unclassified');
+      }
+      return [...groups.values()]
+        .map((group) => ({ ...group, projects: group.projects.size }))
+        .sort(
+          (a, b) =>
+            b.count - a.count ||
+            b.running - a.running ||
+            String(a.name).localeCompare(String(b.name)),
+        );
+    }
+
+    /**
+     * 旧 Host 没有 projects 字段时的客户端兜底聚合。
+     * @param {any[]} apps
+     * @returns {any[]}
+     */
+    function aggregateOverviewProjects(apps) {
+      /** @type {Map<string, any>} */
+      const groups = new Map();
+      for (const app of apps) {
+        const key = app.projectId ?? 'unclassified';
+        let group = groups.get(key);
+        if (!group) {
+          group = {
+            id: key,
+            name: app.projectName ?? '',
+            root: app.projectRoot ?? '',
+            apps: 0,
+            running: 0,
+            cpuPercent: 0,
+            rssBytes: 0,
+          };
+          groups.set(key, group);
+        }
+        group.apps += 1;
+        if (app.status === 'running') {
+          group.running += 1;
+          group.cpuPercent += Number(app.cpuPercent) || 0;
+          group.rssBytes += Number(app.rssBytes) || 0;
+        }
+      }
+      return [...groups.values()];
+    }
+
+    /**
+     * 把 status 归一化成概览需要的一份模型。两个概览 tab 共用。
+     * @param {any} status
+     * @returns {any}
+     */
+    function buildOverviewModel(status) {
+      const apps = Array.isArray(status.applications) ? status.applications : [];
+      const running = apps.filter((app) => app.status === 'running');
+      const crashed = apps.filter((app) => app.status === 'crashed');
+      const stopped = apps.filter((app) => app.status === 'stopped');
+      const missing = apps.filter((app) => app.missing === true);
+      const restartRequired = apps.filter((app) => app.restartRequired === true);
+      const severity = (app) =>
+        app.status === 'crashed'
+          ? 0
+          : app.missing === true
+            ? 1
+            : app.restartRequired === true
+              ? 2
+              : 3;
+      const attention = apps
+        .filter(
+          (app) => app.status === 'crashed' || app.missing === true || app.restartRequired === true,
+        )
+        .sort((a, b) => severity(a) - severity(b) || String(a.name).localeCompare(String(b.name)));
+      const totalCpu = running.reduce((sum, app) => sum + (Number(app.cpuPercent) || 0), 0);
+      const totalRss = running.reduce((sum, app) => sum + (Number(app.rssBytes) || 0), 0);
+      const avgUptime = running.length
+        ? running.reduce((sum, app) => sum + (Number(app.uptimeMs) || 0), 0) / running.length
+        : 0;
+      const longest = [...running].sort(
+        (a, b) => (Number(b.uptimeMs) || 0) - (Number(a.uptimeMs) || 0),
+      )[0];
+      const languageStats = groupOverviewApps(apps, 'language');
+      const managerStats = groupOverviewApps(apps, 'manager');
+      const ecoStats = groupOverviewApps(apps, 'ecosystemName');
+      const managerKinds = managerStats.filter(
+        (item) => item.name !== '' && item.name !== '—',
+      ).length;
+      const sourceProjects =
+        Array.isArray(status.projects) && status.projects.length > 0
+          ? status.projects
+          : aggregateOverviewProjects(apps);
+      const projects = sourceProjects.map((project) => {
+        const projectApps = apps.filter((app) => (app.projectId ?? 'unclassified') === project.id);
+        const projectRunning = projectApps.filter((app) => app.status === 'running');
+        return {
+          id: project.id,
+          name: project.name || '',
+          root: project.root || '',
+          apps: Number.isFinite(project.apps) ? project.apps : projectApps.length,
+          running: Number.isFinite(project.running) ? project.running : projectRunning.length,
+          cpuPercent: Number.isFinite(project.cpuPercent)
+            ? project.cpuPercent
+            : projectRunning.reduce((sum, app) => sum + (Number(app.cpuPercent) || 0), 0),
+          rssBytes: Number.isFinite(project.rssBytes)
+            ? project.rssBytes
+            : projectRunning.reduce((sum, app) => sum + (Number(app.rssBytes) || 0), 0),
+          languages: [...new Set(projectApps.map((app) => app.language).filter((item) => item))],
+          managers: [
+            ...new Set(
+              projectApps.map((app) => app.manager).filter((item) => item && item !== '—'),
+            ),
+          ],
+        };
+      });
+      projects.sort((a, b) => b.running - a.running || b.cpuPercent - a.cpuPercent);
+      const history = Array.isArray(status.resourceHistory)
+        ? status.resourceHistory.slice(-60)
+        : [];
+      const cpuPeak = history.length
+        ? Math.max(...history.map((sample) => Number(sample.cpuPercent) || 0))
+        : null;
+      const rssPeak = history.length
+        ? Math.max(...history.map((sample) => Number(sample.rssBytes) || 0))
+        : null;
+      return {
+        apps,
+        running,
+        crashed,
+        stopped,
+        missing,
+        restartRequired,
+        attention,
+        totalCpu,
+        totalRss,
+        avgUptime,
+        longest,
+        languageStats,
+        managerStats,
+        ecoStats,
+        managerKinds,
+        projects,
+        history,
+        cpuPeak,
+        rssPeak,
+        system: status.system,
+        generatedAt: status.generatedAt,
+      };
+    }
+
+    /**
+     * 概览里的通用卡片头。
+     * @param {{ title: string, subtitle?: string, side?: any }} props
+     */
+    function OverviewCardHead(props) {
+      return h(
+        'div',
+        { className: 'dy-ov-card-head' },
+        h(
+          'div',
+          null,
+          h('h3', { className: 'dy-ov-card-title' }, props.title),
+          props.subtitle ? h('p', { className: 'dy-ov-card-sub' }, props.subtitle) : null,
+        ),
+        props.side === undefined || props.side === null
+          ? null
+          : h('span', { className: 'dy-ov-card-side' }, props.side),
+      );
+    }
+
+    /**
+     * 概览 section 头：标题 + 说明 + 右侧元信息。
+     * @param {{ title: any, hint?: string, meta?: any }} props
+     */
+    function OverviewBlockHead(props) {
+      return h(
+        'div',
+        { className: 'dy-ov-block-head' },
+        h(
+          'div',
+          null,
+          h('h2', { className: 'dy-ov-block-title' }, props.title),
+          props.hint ? h('p', { className: 'dy-ov-block-hint' }, props.hint) : null,
+        ),
+        props.meta === undefined || props.meta === null
+          ? null
+          : h('span', { className: 'dy-ov-block-meta' }, props.meta),
+      );
+    }
+
+    /**
+     * 环形图。颜色由调用方传入主题 token；缺口用 stroke-dasharray 留。
+     * @param {{ segments: { label: string, value: number, color: string }[], centerValue: string | number, centerLabel: string, ariaLabel: string, size?: number }} props
+     */
+    function OverviewDonut(props) {
+      const size = props.size ?? 148;
+      const stroke = 15;
+      const radius = (size - stroke) / 2;
+      const center = size / 2;
+      const circumference = 2 * Math.PI * radius;
+      const total = props.segments.reduce((sum, segment) => sum + segment.value, 0) || 1;
+      let offset = 0;
+      const circles = props.segments.map((segment) => {
+        const length = (segment.value / total) * circumference;
+        const gap = Math.min(3.5, length * 0.25);
+        const dash = Math.max(0.001, length - gap);
+        const circle = h(
+          'circle',
+          {
+            key: segment.label,
+            cx: center,
+            cy: center,
+            r: radius,
+            fill: 'none',
+            stroke: segment.color,
+            strokeWidth: stroke,
+            strokeLinecap: 'round',
+            strokeDasharray: `${dash} ${circumference - dash}`,
+            strokeDashoffset: -offset,
+            transform: `rotate(-90 ${center} ${center})`,
+          },
+          h('title', null, `${segment.label} ${segment.value}`),
+        );
+        offset += length;
+        return circle;
+      });
+      return h(
+        'div',
+        { className: 'dy-ov-donut', style: { width: `${size}px`, height: `${size}px` } },
+        h(
+          'svg',
+          {
+            viewBox: `0 0 ${size} ${size}`,
+            role: 'img',
+            'aria-label': props.ariaLabel,
+          },
+          h('circle', {
+            cx: center,
+            cy: center,
+            r: radius,
+            fill: 'none',
+            stroke: 'var(--dy-track)',
+            strokeWidth: stroke,
+          }),
+          ...circles,
+        ),
+        h(
+          'div',
+          { className: 'dy-ov-donut-center' },
+          h('b', null, String(props.centerValue)),
+          h('span', null, props.centerLabel),
+        ),
+      );
+    }
+
+    /**
+     * 迷你折线。没有采样点时显示明确文案，不画一条假线。
+     * @param {{ values: number[], color: string, label: string, gradientId: string, emptyText: string, height?: number }} props
+     */
+    function OverviewSparkline(props) {
+      if (!props.values.length) {
+        return h('div', { className: 'dy-ov-spark-empty' }, props.emptyText);
+      }
+      const values = props.values.length === 1 ? [props.values[0], props.values[0]] : props.values;
+      const width = 300;
+      const height = props.height ?? 46;
+      const padding = 4;
+      const min = Math.min(...props.values);
+      const max = Math.max(...props.values);
+      const span = max - min || 1;
+      const low = min - span * 0.15;
+      const high = max + span * 0.15;
+      const points = values.map((value, index) => [
+        (index / (values.length - 1)) * width,
+        height - padding - ((value - low) / (high - low)) * (height - padding * 2),
+      ]);
+      const line = points
+        .map(([x, y], index) => `${index === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`)
+        .join(' ');
+      const area = `M0,${height} L${points
+        .map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`)
+        .join(' L')} L${width},${height} Z`;
+      const lastPoint = points[points.length - 1];
+      return h(
+        'svg',
+        {
+          className: 'dy-ov-spark',
+          viewBox: `0 0 ${width} ${height}`,
+          preserveAspectRatio: 'none',
+          role: 'img',
+          'aria-label': props.label,
+        },
+        h(
+          'defs',
+          null,
+          h(
+            'linearGradient',
+            { id: props.gradientId, x1: '0', y1: '0', x2: '0', y2: '1' },
+            h('stop', { offset: '0', stopColor: props.color, stopOpacity: 0.26 }),
+            h('stop', { offset: '1', stopColor: props.color, stopOpacity: 0 }),
+          ),
+        ),
+        h('path', { d: area, fill: `url(#${props.gradientId})` }),
+        h('path', {
+          d: line,
+          fill: 'none',
+          stroke: props.color,
+          strokeWidth: 1.6,
+          vectorEffect: 'non-scaling-stroke',
+        }),
+        h('circle', {
+          cx: lastPoint[0].toFixed(2),
+          cy: lastPoint[1].toFixed(2),
+          r: 2.4,
+          fill: props.color,
+        }),
+      );
+    }
+
+    /**
+     * 指标卡。bar 为 0 也要画出来；不传 bar 才完全不画。
+     * @param {{ label: string, value: string, unit?: string, hint: string, tone?: string, bar?: number, dots?: { label: string, color: string }[] }} props
+     */
+    function OverviewMetric(props) {
+      return h(
+        'div',
+        { className: 'dy-ov-metric', 'data-tone': props.tone ?? 'neutral' },
+        h(
+          'div',
+          { className: 'dy-ov-metric-top' },
+          h('span', { className: 'dy-ov-metric-label' }, props.label),
+          h('span', { className: 'dy-ov-metric-dot' }),
+        ),
+        h(
+          'div',
+          { className: 'dy-ov-metric-value' },
+          String(props.value),
+          props.unit ? h('span', { className: 'dy-ov-metric-unit' }, props.unit) : null,
+        ),
+        props.dots
+          ? h(
+              'div',
+              { className: 'dy-ov-metric-dots' },
+              ...props.dots.map((dot) =>
+                h('i', { key: dot.label, style: { background: dot.color }, title: dot.label }),
+              ),
+            )
+          : null,
+        h('div', { className: 'dy-ov-metric-hint' }, props.hint),
+        props.bar === undefined
+          ? null
+          : h(
+              'div',
+              { className: 'dy-ov-metric-bar' },
+              h('i', { style: { width: `${clampPercent(props.bar)}%` } }),
+            ),
+      );
+    }
+
+    /**
+     * @param {{ title: string, meta: string, metrics: any[] }} props
+     */
+    function OverviewMetricGroup(props) {
+      return h(
+        'div',
+        { className: 'dy-ov-metric-group' },
+        h(
+          'div',
+          { className: 'dy-ov-group-head' },
+          h('span', null, props.title),
+          h('span', { className: 'dy-ov-group-line' }),
+          h('span', { className: 'dy-ov-group-meta' }, props.meta),
+        ),
+        h('div', { className: 'dy-ov-metric-grid' }, ...props.metrics),
+      );
+    }
+
+    /**
+     * 概览：状态、规模、资源三组指标。
+     * @param {{ model: any, t: (key: string) => string }} props
+     */
+    function OverviewMetricGroups(props) {
+      const { model, t } = props;
+      const total = model.apps.length || 1;
+      const languageLead = model.languageStats[0];
+      const managerLead = model.managerStats[0];
+      const statusMetrics = [
+        h(OverviewMetric, {
+          key: 'running',
+          label: t('statRunning'),
+          value: String(model.running.length),
+          hint: `${formatWholePercent((model.running.length / total) * 100, t('never'))} · ${
+            model.running.length
+          }/${model.apps.length} ${t('ovLabelApps')}`,
+          tone: 'success',
+          bar: (model.running.length / total) * 100,
+        }),
+        h(OverviewMetric, {
+          key: 'crashed',
+          label: t('statCrashed'),
+          value: String(model.crashed.length),
+          hint: model.crashed.length ? t('ovCrashedHint') : t('attentionEmpty'),
+          tone: 'error',
+          bar: (model.crashed.length / total) * 100,
+        }),
+        h(OverviewMetric, {
+          key: 'stopped',
+          label: t('statStopped'),
+          value: String(model.stopped.length),
+          hint: format(t('ovStoppedHint'), { count: model.stopped.length }),
+          tone: 'idle',
+          bar: (model.stopped.length / total) * 100,
+        }),
+        h(OverviewMetric, {
+          key: 'attention',
+          label: t('ovLabelAttention'),
+          value: String(model.attention.length),
+          hint: format(t('ovAttentionHint'), {
+            crashed: model.crashed.length,
+            missing: model.missing.length,
+            restart: model.restartRequired.length,
+          }),
+          tone: 'warn',
+          bar: (model.attention.length / total) * 100,
+        }),
+      ];
+      const scaleMetrics = [
+        h(OverviewMetric, {
+          key: 'projects',
+          label: t('statProjects'),
+          value: String(model.projects.length),
+          hint: format(t('ovStatProjectsHint'), {
+            apps: model.apps.length,
+            avg: (model.apps.length / (model.projects.length || 1)).toFixed(1),
+          }),
+        }),
+        h(OverviewMetric, {
+          key: 'apps',
+          label: t('ovLabelApps'),
+          value: String(model.apps.length),
+          hint: format(t('ovStatAppsHint'), {
+            running: model.running.length,
+            idle: model.apps.length - model.running.length,
+          }),
+        }),
+        h(OverviewMetric, {
+          key: 'languages',
+          label: t('ovLabelLanguages'),
+          value: String(model.languageStats.length),
+          hint: languageLead
+            ? format(t('ovStatLanguagesHint'), {
+                name: languageLead.name || t('languageUnknown'),
+                count: languageLead.count,
+              })
+            : t('languageUnknown'),
+          dots: model.languageStats.map((group) => ({
+            label: `${group.name || t('languageUnknown')} ${group.count}`,
+            color: categoryColor(OVERVIEW_LANGUAGE_COLORS, group.name),
+          })),
+        }),
+        h(OverviewMetric, {
+          key: 'managers',
+          label: t('ovLabelManagers'),
+          value: String(model.managerKinds),
+          hint: managerLead
+            ? format(t('ovStatManagersHint'), {
+                name: managerLead.name || t('ovManagerUndeclared'),
+                count: managerLead.count,
+              })
+            : t('ovManagerUndeclared'),
+          dots: model.managerStats.map((group) => ({
+            label: `${group.name || t('ovManagerUndeclared')} ${group.count}`,
+            color: categoryColor(OVERVIEW_MANAGER_COLORS, group.name),
+          })),
+        }),
+      ];
+      const memoryParts = sizeParts(model.totalRss);
+      const avgParts = durationParts(model.avgUptime);
+      const longestParts = durationParts(model.longest?.uptimeMs);
+      const resourceMetrics = [
+        h(OverviewMetric, {
+          key: 'cpu',
+          label: t('statCpu'),
+          value: model.totalCpu.toFixed(1),
+          unit: '%',
+          tone: 'brand',
+          hint: format(t('ovStatCpuHint'), {
+            peak: model.cpuPeak === null ? t('never') : formatPercent(model.cpuPeak, t('never')),
+            running: model.running.length,
+          }),
+          bar: model.totalCpu,
+        }),
+        h(OverviewMetric, {
+          key: 'memory',
+          label: t('statMemory'),
+          value: memoryParts.value,
+          unit: memoryParts.unit,
+          tone: 'brand',
+          hint: format(t('ovStatMemoryHint'), {
+            percent: formatWholePercent(
+              model.system && Number(model.system.totalmem) > 0
+                ? (model.totalRss / Number(model.system.totalmem)) * 100
+                : null,
+              t('never'),
+            ),
+            peak: model.rssPeak === null ? t('never') : formatSizeDetailed(model.rssPeak),
+          }),
+          bar:
+            model.system && Number(model.system.totalmem) > 0
+              ? (model.totalRss / Number(model.system.totalmem)) * 100
+              : 0,
+        }),
+        h(OverviewMetric, {
+          key: 'avg',
+          label: t('ovLabelAvgUptime'),
+          value: avgParts.value,
+          unit: avgParts.unit,
+          hint: format(t('ovStatAvgUptimeHint'), { running: model.running.length }),
+        }),
+        h(OverviewMetric, {
+          key: 'longest',
+          label: t('ovLabelLongest'),
+          value: longestParts.value,
+          unit: longestParts.unit,
+          hint: model.longest
+            ? format(t('ovStatLongestHint'), { name: model.longest.name })
+            : t('runningEmpty'),
+        }),
+      ];
+      return h(
+        'div',
+        { className: 'dy-ov-metric-groups' },
+        h(OverviewMetricGroup, {
+          title: t('ovGroupStatus'),
+          meta: format(t('ovGroupStatusMeta'), {
+            apps: model.apps.length,
+            projects: model.projects.length,
+          }),
+          metrics: statusMetrics,
+        }),
+        h(OverviewMetricGroup, {
+          title: t('ovGroupScale'),
+          meta: t('ovGroupScaleMeta'),
+          metrics: scaleMetrics,
+        }),
+        h(OverviewMetricGroup, {
+          title: t('ovGroupResources'),
+          meta: t('ovGroupResourcesMeta'),
+          metrics: resourceMetrics,
+        }),
+      );
+    }
+
+    /**
+     * @param {{ languages: string[], managers: string[], t: (key: string) => string }} props
+     */
+    function OverviewTags(props) {
+      return h(
+        'div',
+        { className: 'dy-ov-tags' },
+        ...props.languages.map((language) =>
+          h(
+            'span',
+            { key: `lang:${language}`, className: 'dy-ov-tag' },
+            h('i', {
+              className: 'dy-ov-tag-dot',
+              style: { background: categoryColor(OVERVIEW_LANGUAGE_COLORS, language) },
+            }),
+            language,
+          ),
+        ),
+        ...props.managers.map((manager) =>
+          h('span', { key: `mgr:${manager}`, className: 'dy-ov-tag dy-ov-tag-mgr' }, manager),
+        ),
+      );
+    }
+
+    /**
+     * @param {{ model: any, t: (key: string) => string }} props
+     */
+    function OverviewStatusCard(props) {
+      const { model, t } = props;
+      const total = model.apps.length || 1;
+      const segments = [
+        {
+          label: t('statusRunning'),
+          value: model.running.length,
+          color: 'var(--dsw-alias-state-success-primary, #2ea043)',
+        },
+        {
+          label: t('statusCrashed'),
+          value: model.crashed.length,
+          color: 'var(--dsw-alias-state-error-primary, #f85149)',
+        },
+        {
+          label: t('statusStopped'),
+          value: model.stopped.length,
+          color: 'var(--dsw-alias-state-idle-primary, #8b949e)',
+        },
+      ];
+      return h(
+        'div',
+        { className: 'dy-ov-card' },
+        h(OverviewCardHead, {
+          title: t('ovStatusTitle'),
+          subtitle: t('ovStatusSubtitle'),
+          side: format(t('ovStatusMeta'), { count: model.apps.length }),
+        }),
+        h(
+          'div',
+          { className: 'dy-ov-donut-layout' },
+          h(OverviewDonut, {
+            segments,
+            centerValue: model.apps.length,
+            centerLabel: t('ovLabelApps'),
+            ariaLabel: segments.map((segment) => `${segment.label} ${segment.value}`).join('，'),
+          }),
+          h(
+            'div',
+            { className: 'dy-ov-donut-legend' },
+            ...segments.map((segment) =>
+              h(
+                'div',
+                { key: segment.label, className: 'dy-ov-legend-row' },
+                h('i', { className: 'dy-ov-legend-dot', style: { background: segment.color } }),
+                h('span', { className: 'dy-ov-legend-name' }, segment.label),
+                h('span', { className: 'dy-ov-legend-value' }, String(segment.value)),
+                h(
+                  'span',
+                  { className: 'dy-ov-legend-pct' },
+                  formatWholePercent((segment.value / total) * 100, t('never')),
+                ),
+              ),
+            ),
+          ),
+        ),
+        h(
+          'div',
+          { className: 'dy-ov-overlay-note' },
+          h('span', null, t('ovStatusOverlay')),
+          h(
+            'span',
+            { className: 'dy-ov-chip warn' },
+            format(t('ovStatusMissing'), { count: model.missing.length }),
+          ),
+          h(
+            'span',
+            { className: 'dy-ov-chip warn' },
+            format(t('ovStatusRestart'), { count: model.restartRequired.length }),
+          ),
+        ),
+        h(
+          'div',
+          { className: 'dy-ov-rate-foot' },
+          h(
+            'div',
+            { className: 'dy-ov-rate-head' },
+            h('span', null, t('ovStatusRunRate')),
+            h('b', null, formatWholePercent((model.running.length / total) * 100, t('never'))),
+          ),
+          h(
+            'div',
+            { className: 'dy-ov-meter' },
+            h('i', { style: { width: `${(model.running.length / total) * 100}%` } }),
+          ),
+        ),
+      );
+    }
+
+    /**
+     * 语言 / 包管理器分布共用一张卡。
+     * @param {{ t: any, title: string, subtitle: string, footnote: string, items: any[], colorOf: (name: string) => string, nameOf: (name: string) => string }} props
+     */
+    function OverviewDistributionCard(props) {
+      const max = Math.max(...props.items.map((item) => item.count), 1);
+      return h(
+        'div',
+        { className: 'dy-ov-card' },
+        h(OverviewCardHead, {
+          title: props.title,
+          subtitle: props.subtitle,
+          side: format(props.t('ovDistKinds'), { count: props.items.length }),
+        }),
+        h(
+          'div',
+          { className: 'dy-ov-dist-list' },
+          ...props.items.map((item) => {
+            const color = props.colorOf(item.name);
+            return h(
+              'div',
+              {
+                key: item.name || 'unknown',
+                className: 'dy-ov-dist-row',
+                title: format(props.t('ovDistTitle'), {
+                  name: props.nameOf(item.name),
+                  count: item.count,
+                  running: item.running,
+                }),
+              },
+              h(
+                'div',
+                { className: 'dy-ov-dist-top' },
+                h('i', { className: 'dy-ov-dot', style: { background: color } }),
+                h('span', { className: 'dy-ov-dist-name' }, props.nameOf(item.name)),
+                h(
+                  'span',
+                  { className: 'dy-ov-dist-sub' },
+                  format(props.t('ovDistSub'), {
+                    running: item.running,
+                    projects: item.projects,
+                  }),
+                ),
+                h('span', { className: 'dy-ov-dist-count' }, String(item.count)),
+              ),
+              h(
+                'div',
+                { className: 'dy-ov-dist-track' },
+                h('span', {
+                  className: 'dy-ov-dist-fill',
+                  style: {
+                    width: `${(item.count / max) * 100}%`,
+                    background: color,
+                  },
+                }),
+                h('span', {
+                  className: 'dy-ov-dist-run',
+                  style: {
+                    width: `${(item.running / max) * 100}%`,
+                    background: color,
+                  },
+                }),
+              ),
+            );
+          }),
+        ),
+        h('p', { className: 'dy-ov-footnote' }, props.footnote),
+      );
+    }
+
+    /**
+     * @param {{ model: any, t: any }} props
+     */
+    function OverviewLanguageCard(props) {
+      const { model, t } = props;
+      return h(OverviewDistributionCard, {
+        t,
+        title: t('ovLanguageTitle'),
+        subtitle: t('ovLanguageSubtitle'),
+        footnote: t('ovLanguageFootnote'),
+        items: model.languageStats,
+        colorOf: (name) => categoryColor(OVERVIEW_LANGUAGE_COLORS, name || '__unknown__'),
+        nameOf: (name) => name || t('languageUnknown'),
+      });
+    }
+
+    /**
+     * @param {{ model: any, t: any }} props
+     */
+    function OverviewManagerCard(props) {
+      const { model, t } = props;
+      return h(OverviewDistributionCard, {
+        t,
+        title: t('ovManagerTitle'),
+        subtitle: t('ovManagerSubtitle'),
+        footnote: t('ovManagerFootnote'),
+        items: model.managerStats,
+        colorOf: (name) => categoryColor(OVERVIEW_MANAGER_COLORS, name || '—'),
+        nameOf: (name) => name || t('ovManagerUndeclared'),
+      });
+    }
+
+    /**
+     * @param {{ model: any, t: any }} props
+     */
+    function OverviewTechCard(props) {
+      const { model, t } = props;
+      const total = model.apps.length || 1;
+      const top = model.ecoStats[0];
+      return h(
+        'div',
+        { className: 'dy-ov-card' },
+        h(OverviewCardHead, {
+          title: t('ovTechTitle'),
+          subtitle: t('ovTechSubtitle'),
+          side: format(t('ovTechKinds'), { count: model.ecoStats.length }),
+        }),
+        h(
+          'div',
+          {
+            className: 'dy-ov-stack-bar',
+            role: 'img',
+            'aria-label': format(t('ovTechAria'), {
+              detail: model.ecoStats
+                .map((item) => `${item.name || t('languageUnknown')} ${item.count}`)
+                .join('，'),
+            }),
+          },
+          ...model.ecoStats.map((item) =>
+            h('span', {
+              key: item.name || 'unknown',
+              className: 'dy-ov-stack-seg',
+              style: {
+                flexGrow: item.count,
+                background: categoryColor(OVERVIEW_LANGUAGE_COLORS, item.language),
+              },
+              title: `${item.name || t('languageUnknown')} ${item.count}`,
+            }),
+          ),
+        ),
+        h(
+          'div',
+          { className: 'dy-ov-tech-legend' },
+          ...model.ecoStats.map((item) =>
+            h(
+              'span',
+              { key: item.name || 'unknown', className: 'dy-ov-legend-chip' },
+              h('i', {
+                style: {
+                  background: categoryColor(OVERVIEW_LANGUAGE_COLORS, item.language),
+                },
+              }),
+              item.name || t('languageUnknown'),
+              h('b', null, String(item.count)),
+            ),
+          ),
+        ),
+        h(
+          'p',
+          { className: 'dy-ov-tech-foot' },
+          top
+            ? format(t('ovTechFoot'), {
+                name: top.name || t('languageUnknown'),
+                percent: formatWholePercent((top.count / total) * 100, t('never')),
+                projects: top.projects,
+              })
+            : t('ovTechEmpty'),
+        ),
+      );
+    }
+
+    /**
+     * @param {{ model: any, t: any, gradientPrefix?: string }} props
+     */
+    function OverviewResourceTrendCard(props) {
+      const { model, t } = props;
+      const history = model.history;
+      const cpuValues = history.map((sample) => Number(sample.cpuPercent) || 0);
+      const rssValues = history.map((sample) => Number(sample.rssBytes) || 0);
+      return h(
+        'div',
+        { className: 'dy-ov-card' },
+        h(OverviewCardHead, {
+          title: t('ovResourceTitle'),
+          subtitle: format(t('ovResourceSubtitle'), { count: history.length }),
+          side: t('ovResourceInterval'),
+        }),
+        h(
+          'div',
+          { className: 'dy-ov-trend-block' },
+          h(
+            'div',
+            { className: 'dy-ov-trend-head' },
+            h('span', { className: 'dy-ov-trend-label' }, t('ovResourceCpu')),
+            h('b', null, formatPercent(model.totalCpu, t('never'))),
+            h(
+              'span',
+              { className: 'dy-ov-trend-peak' },
+              format(t('ovResourcePeak'), {
+                value:
+                  model.cpuPeak === null ? t('never') : formatPercent(model.cpuPeak, t('never')),
+              }),
+            ),
+          ),
+          h(OverviewSparkline, {
+            values: cpuValues,
+            color: 'var(--dy-cat-brand)',
+            label: t('ovResourceTitle'),
+            gradientId: `${props.gradientPrefix ?? 'dy-ov'}-spark-cpu`,
+            emptyText: t('ovResourceEmpty'),
+          }),
+        ),
+        h(
+          'div',
+          { className: 'dy-ov-trend-block' },
+          h(
+            'div',
+            { className: 'dy-ov-trend-head' },
+            h('span', { className: 'dy-ov-trend-label' }, t('ovResourceMemory')),
+            h('b', null, formatSizeDetailed(model.totalRss)),
+            h(
+              'span',
+              { className: 'dy-ov-trend-peak' },
+              format(t('ovResourcePeak'), {
+                value: model.rssPeak === null ? t('never') : formatSizeDetailed(model.rssPeak),
+              }),
+            ),
+          ),
+          h(OverviewSparkline, {
+            values: rssValues,
+            color: 'var(--dy-cat-business)',
+            label: t('ovResourceMemory'),
+            gradientId: `${props.gradientPrefix ?? 'dy-ov'}-spark-rss`,
+            emptyText: t('ovResourceEmpty'),
+          }),
+        ),
+        h('p', { className: 'dy-ov-footnote' }, t('ovResourceFootnote')),
+      );
+    }
+
+    /**
+     * @param {{ model: any, t: any }} props
+     */
+    function OverviewHostCard(props) {
+      const { model, t } = props;
+      const system = model.system;
+      const totalBytes = system ? Number(system.totalmem) || 0 : 0;
+      const freeBytes = system ? Number(system.freemem) || 0 : 0;
+      const usedBytes = Math.max(0, totalBytes - freeBytes);
+      const usedPercent = totalBytes > 0 ? (usedBytes / totalBytes) * 100 : 0;
+      const gigabytes = 1024 ** 3;
+      const loads = system && Array.isArray(system.loadavg) ? system.loadavg.slice(0, 3) : [];
+      return h(
+        'div',
+        { className: 'dy-ov-card' },
+        h(OverviewCardHead, {
+          title: t('ovHostTitle'),
+          subtitle: t('ovHostSubtitle'),
+          side: system ? platformLabel(system.platform) : t('never'),
+        }),
+        h(
+          'div',
+          { className: 'dy-ov-host-mem' },
+          h(
+            'div',
+            { className: 'dy-ov-host-mem-top' },
+            h('span', null, t('ovHostMemory')),
+            h(
+              'b',
+              null,
+              totalBytes > 0
+                ? format(t('ovHostMemoryValue'), {
+                    used: (usedBytes / gigabytes).toFixed(1),
+                    total: String(Math.round(totalBytes / gigabytes)),
+                  })
+                : t('never'),
+            ),
+          ),
+          h('div', { className: 'dy-ov-meter' }, h('i', { style: { width: `${usedPercent}%` } })),
+        ),
+        h(
+          'div',
+          { className: 'dy-ov-host-grid' },
+          h(
+            'div',
+            { className: 'dy-ov-host-kv' },
+            h('span', null, t('ovHostLoad')),
+            h(
+              'b',
+              null,
+              loads.length
+                ? loads.map((value) => Number(value).toFixed(2)).join(' / ')
+                : t('never'),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'dy-ov-host-kv' },
+            h('span', null, t('ovHostCores')),
+            h('b', null, system ? String(system.cpus ?? t('never')) : t('never')),
+          ),
+          h(
+            'div',
+            { className: 'dy-ov-host-kv' },
+            h('span', null, t('ovHostUptime')),
+            h('b', null, formatUptime(system ? (Number(system.uptime) || 0) * 1000 : 0, t)),
+          ),
+          h(
+            'div',
+            { className: 'dy-ov-host-kv' },
+            h('span', null, t('ovHostPlatform')),
+            h('b', null, system ? platformLabel(system.platform) : t('never')),
+          ),
+        ),
+        h('p', { className: 'dy-ov-footnote' }, t('ovHostFootnote')),
+      );
+    }
+
+    /**
+     * @param {{ model: any, t: any }} props
+     */
+    function OverviewProjectLoadCard(props) {
+      const { model, t } = props;
+      const maxCpu = Math.max(...model.projects.map((project) => project.cpuPercent || 0), 1);
+      const maxRss = Math.max(...model.projects.map((project) => project.rssBytes || 0), 1);
+      return h(
+        'div',
+        { className: 'dy-ov-card' },
+        h(OverviewCardHead, {
+          title: t('ovProjectLoadTitle'),
+          subtitle: t('ovProjectLoadSubtitle'),
+          side: format(t('ovProjectLoadMeta'), {
+            projects: model.projects.length,
+            apps: model.apps.length,
+          }),
+        }),
+        ...model.projects.map((project) =>
+          h(
+            'div',
+            { key: project.id, className: 'dy-ov-project-row' },
+            h(
+              'div',
+              { className: 'dy-ov-project-main' },
+              h(
+                'div',
+                { className: 'dy-ov-project-line' },
+                h('span', { className: 'dy-ov-project-name' }, project.name || t('unclassified')),
+                project.root ? h('span', { className: 'dy-ov-project-path' }, project.root) : null,
+                h(OverviewTags, {
+                  languages: project.languages,
+                  managers: project.managers,
+                  t,
+                }),
+              ),
+              h(
+                'div',
+                { className: 'dy-ov-project-bars' },
+                h(
+                  'span',
+                  { className: 'dy-ov-mini-meter' },
+                  h('i', {
+                    style: {
+                      width: `${clampPercent((project.cpuPercent / maxCpu) * 100)}%`,
+                    },
+                  }),
+                ),
+                h(
+                  'span',
+                  { className: 'dy-ov-mini-meter dy-ov-mini-meter-mem' },
+                  h('i', {
+                    style: {
+                      width: `${clampPercent((project.rssBytes / maxRss) * 100)}%`,
+                    },
+                  }),
+                ),
+              ),
+            ),
+            h(
+              'div',
+              { className: 'dy-ov-project-meta' },
+              h('b', null, String(project.apps)),
+              ` ${t('ovProjectApps').replace('{count}', '').trim()}`,
+              h('br'),
+              h('span', null, format(t('ovProjectRunning'), { count: project.running })),
+            ),
+            h(
+              'div',
+              { className: 'dy-ov-project-value' },
+              project.running ? formatPercent(project.cpuPercent, t('never')) : t('never'),
+              h('br'),
+              h('span', null, project.running ? formatSizeDetailed(project.rssBytes) : t('never')),
+            ),
+          ),
+        ),
+      );
+    }
+
+    /**
+     * @param {{ t: any, apps: any[], field: 'cpu' | 'mem', title: string, merged?: boolean, mode?: string, onModeChange?: (mode: string) => void }} props
+     */
+    function OverviewRankingCard(props) {
+      const { t, apps, field } = props;
+      const items = [...apps]
+        .filter((app) => Number.isFinite(field === 'cpu' ? app.cpuPercent : app.rssBytes))
+        .sort((a, b) =>
+          field === 'cpu'
+            ? (Number(b.cpuPercent) || 0) - (Number(a.cpuPercent) || 0)
+            : (Number(b.rssBytes) || 0) - (Number(a.rssBytes) || 0),
+        )
+        .slice(0, 5);
+      const max = Math.max(
+        ...items.map((app) => Number(field === 'cpu' ? app.cpuPercent : app.rssBytes) || 0),
+        1,
+      );
+      return h(
+        'div',
+        { className: 'dy-ov-card' },
+        h(
+          'div',
+          { className: 'dy-ov-card-head' },
+          h(
+            'div',
+            null,
+            h('h3', { className: 'dy-ov-card-title' }, props.title),
+            h('p', { className: 'dy-ov-card-sub' }, t('ovRankSubtitle')),
+          ),
+          props.merged
+            ? h(
+                'div',
+                { className: 'dy-ov-seg', role: 'group', 'aria-label': t('ovRankingTitle') },
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'dy-ov-seg-btn',
+                    'aria-pressed': props.mode === 'cpu',
+                    onClick: () => props.onModeChange?.('cpu'),
+                  },
+                  t('ovRankCpu'),
+                ),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'dy-ov-seg-btn',
+                    'aria-pressed': props.mode === 'mem',
+                    onClick: () => props.onModeChange?.('mem'),
+                  },
+                  t('ovResourceMemory'),
+                ),
+              )
+            : h(
+                'span',
+                { className: 'dy-ov-card-side' },
+                field === 'cpu' ? t('ovRankCpu') : t('ovRankRss'),
+              ),
+        ),
+        items.length === 0
+          ? h('p', { className: 'dy-ov-hint' }, t('noMetrics'))
+          : h(
+              'div',
+              { className: 'dy-ov-rank-list' },
+              ...items.map((app) =>
+                h(
+                  'div',
+                  { key: app.id, className: 'dy-ov-rank-row' },
+                  h(
+                    'div',
+                    { className: 'dy-ov-rank-top' },
+                    h('span', { className: 'dy-ov-rank-name' }, app.name),
+                    h(
+                      'span',
+                      { className: 'dy-ov-rank-project' },
+                      app.projectName ?? t('unclassified'),
+                    ),
+                    h(
+                      'span',
+                      { className: 'dy-ov-rank-value' },
+                      field === 'cpu'
+                        ? formatPercent(app.cpuPercent, t('never'))
+                        : formatSizeDetailed(app.rssBytes),
+                    ),
+                  ),
+                  h(
+                    'div',
+                    { className: 'dy-ov-meter' },
+                    h('i', {
+                      style: {
+                        width: `${clampPercent(
+                          ((Number(field === 'cpu' ? app.cpuPercent : app.rssBytes) || 0) / max) *
+                            100,
+                        )}%`,
+                        background: field === 'mem' ? 'var(--dy-cat-business)' : undefined,
+                      },
+                    }),
+                  ),
+                ),
+              ),
+            ),
+        props.merged ? h('p', { className: 'dy-ov-footnote' }, t('ovRankFootnote')) : null,
+      );
+    }
+
+    /**
+     * @param {{ app: any, t: any }} props
+     */
+    function OverviewAttentionRow(props) {
+      const { app, t } = props;
+      return h(
+        'div',
+        { className: 'dy-ov-alert-row' },
+        h(
+          'span',
+          {
+            className: `dy-ov-alert-icon ${
+              app.status === 'crashed' ? '' : 'dy-ov-alert-icon-warn'
+            }`,
+          },
+          app.status === 'crashed' ? '!' : 'i',
+        ),
+        h(
+          'div',
+          { className: 'dy-ov-alert-main' },
+          h(
+            'div',
+            { className: 'dy-ov-alert-title' },
+            app.name,
+            h(OverviewTags, {
+              languages: app.language ? [app.language] : [],
+              managers: app.manager && app.manager !== '—' ? [app.manager] : [],
+              t,
+            }),
+          ),
+          h(
+            'div',
+            { className: 'dy-ov-alert-meta' },
+            `${app.projectName ?? t('unclassified')} · ${
+              app.statusReason || app.reason || app.command || ''
+            }`,
+          ),
+        ),
+        h(StatusPill, { status: app.status, t }),
+        h(
+          'div',
+          { className: 'dy-ov-row-actions' },
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'dy-btn dy-ov-btn',
+              onClick: () => props.onLogs(app.id),
+            },
+            t('actionLogs'),
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              className:
+                app.status === 'crashed' ? 'dy-btn dy-btn-primary dy-ov-btn' : 'dy-btn dy-ov-btn',
+              disabled: props.busy !== '',
+              onClick: () => {
+                if (app.status === 'crashed') props.onStart(app.id);
+                else if (app.missing) props.onSync();
+                else if (app.restartRequired) props.onRestart(app.id);
+                else props.onStart(app.id);
+              },
+            },
+            app.status === 'crashed'
+              ? t('actionStart')
+              : app.missing
+                ? t('ovActionSync')
+                : app.restartRequired
+                  ? t('actionRestart')
+                  : t('actionStart'),
+          ),
+        ),
+      );
+    }
+
+    /**
+     * @param {{ model: any, t: any, onLogs: any, onStart: any, onRestart: any, onSync: any, busy: string }} props
+     */
+    function OverviewAttentionSection(props) {
+      const { model, t } = props;
+      if (model.attention.length === 0) return null;
+      return h(
+        'section',
+        { className: 'dy-ov-block' },
+        h(OverviewBlockHead, {
+          title: h(
+            React.Fragment,
+            null,
+            t('ovAttentionTitle'),
+            ' ',
+            h('span', { className: 'dy-ov-count' }, String(model.attention.length)),
+          ),
+          hint: t('ovAttentionSubtitle'),
+          meta: t('ovAttentionMeta'),
+        }),
+        h(
+          'div',
+          { className: 'dy-ov-card dy-ov-list-card' },
+          ...model.attention.map((app) =>
+            h(OverviewAttentionRow, {
+              key: app.id,
+              app,
+              t,
+              busy: props.busy,
+              onLogs: props.onLogs,
+              onStart: props.onStart,
+              onRestart: props.onRestart,
+              onSync: props.onSync,
+            }),
+          ),
+        ),
+      );
+    }
+
+    /**
+     * @param {{ model: any, t: any, onLogs: any, compact?: boolean }} props
+     */
+    function OverviewRunningSection(props) {
+      const { model, t } = props;
+      const running = [...model.running].sort(
+        (a, b) => (Number(b.uptimeMs) || 0) - (Number(a.uptimeMs) || 0),
+      );
+      return h(
+        'section',
+        { className: 'dy-ov-block' },
+        h(OverviewBlockHead, {
+          title: h(
+            React.Fragment,
+            null,
+            t('runningTitle'),
+            ' ',
+            h('span', { className: 'dy-ov-count' }, String(running.length)),
+          ),
+          hint: t('ovRunningHint'),
+          meta: t('ovRunningMeta'),
+        }),
+        h(
+          'div',
+          { className: 'dy-ov-card dy-ov-list-card' },
+          running.length === 0
+            ? h('p', { className: 'dy-ov-hint dy-ov-list-empty' }, t('runningEmpty'))
+            : null,
+          ...running.map((app) =>
+            h(
+              'div',
+              { key: app.id, className: 'dy-ov-run-row' },
+              h(
+                'div',
+                { className: 'dy-ov-run-main' },
+                h(
+                  'div',
+                  { className: 'dy-ov-run-title' },
+                  app.name,
+                  h(OverviewTags, {
+                    languages: app.language ? [app.language] : [],
+                    managers: app.manager && app.manager !== '—' ? [app.manager] : [],
+                    t,
+                  }),
+                ),
+                h(
+                  'div',
+                  { className: 'dy-ov-run-meta' },
+                  `${app.projectRoot ?? ''} · ${app.command ?? ''} ${
+                    Array.isArray(app.args) ? app.args.join(' ') : ''
+                  }`,
+                ),
+              ),
+              h(StatusPill, { status: app.status, t }),
+              h(
+                'div',
+                { className: 'dy-ov-run-stats' },
+                h(
+                  'div',
+                  { className: 'dy-ov-run-stat' },
+                  h('b', null, formatDurationDetailed(app.uptimeMs, t)),
+                  h('span', null, t('ovDuration')),
+                ),
+                h(
+                  'div',
+                  { className: 'dy-ov-run-stat' },
+                  h('b', null, formatPercent(app.cpuPercent, t('never'))),
+                  h('span', null, t('ovResourceCpu')),
+                ),
+                h(
+                  'div',
+                  { className: 'dy-ov-run-stat' },
+                  h('b', null, formatSizeDetailed(app.rssBytes)),
+                  h('span', null, t('ovResourceMemory')),
+                ),
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dy-btn dy-ov-btn',
+                  onClick: () => props.onLogs(app.id),
+                },
+                t('actionLogs'),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    /**
+     * @param {{ warnings: string[], t: any }} props
+     */
+    function OverviewWarnings(props) {
+      if (!props.warnings.length) return null;
+      return h(
+        'section',
+        { className: 'dy-ov-block' },
+        h(
+          'div',
+          { className: 'dy-ov-card' },
+          h('h2', { className: 'dy-ov-card-title' }, props.t('warningsTitle')),
+          h(
+            'ul',
+            { className: 'dy-ov-warning-list' },
+            ...props.warnings.map((warning, index) => h('li', { key: index }, warning)),
+          ),
+        ),
+      );
+    }
+
+    /**
+     * 指标版概览。
+     * @param {{ model: any, t: any, status: any, busy: string, onDiscover: any, onLogs: any, onStart: any, onRestart: any, onSync: any }} props
+     */
+    function OverviewMetricsView(props) {
+      const { model, t, status } = props;
+      return h(
+        'div',
+        { className: 'dy-ov' },
+        h(
+          'section',
+          { className: 'dy-ov-block' },
+          h(OverviewBlockHead, {
+            title: h(
+              React.Fragment,
+              null,
+              t('ovSectionOverview'),
+              ' ',
+              h('span', { className: 'dy-ov-count' }, format(t('ovMetricCount'), { count: 12 })),
+            ),
+            hint: t('ovSectionOverviewHint'),
+            meta: format(t('ovUpdatedAt'), { time: formatClock(model.generatedAt) }),
+          }),
+          h(OverviewMetricGroups, { model, t }),
+        ),
+        h(
+          'section',
+          { className: 'dy-ov-block' },
+          h(OverviewBlockHead, {
+            title: t('ovSectionDistribution'),
+            hint: t('ovSectionDistributionHint'),
+            meta: format(t('ovSectionDistributionMeta'), { count: model.apps.length }),
+          }),
+          h(
+            'div',
+            { className: 'dy-ov-grid dy-ov-grid-3' },
+            h(OverviewStatusCard, { model, t }),
+            h(OverviewLanguageCard, { model, t }),
+            h(OverviewManagerCard, { model, t }),
+          ),
+          h(
+            'div',
+            { className: 'dy-ov-grid dy-ov-grid-tech' },
+            h(OverviewTechCard, { model, t }),
+            h(OverviewResourceTrendCard, { model, t }),
+            h(OverviewHostCard, { model, t }),
+          ),
+        ),
+        h(
+          'section',
+          { className: 'dy-ov-block' },
+          h(OverviewBlockHead, {
+            title: t('ovSectionLoad'),
+            hint: t('ovSectionLoadHint'),
+            meta: format(t('ovLoadMeta'), {
+              cpu: formatPercent(model.totalCpu, t('never')),
+              memory: formatSizeDetailed(model.totalRss),
+            }),
+          }),
+          h(OverviewProjectLoadCard, { model, t }),
+          h(
+            'div',
+            { className: 'dy-ov-grid dy-ov-grid-2' },
+            h(OverviewRankingCard, {
+              t,
+              apps: model.running,
+              field: 'cpu',
+              title: t('ovRankCpuTitle'),
+            }),
+            h(OverviewRankingCard, {
+              t,
+              apps: model.running,
+              field: 'mem',
+              title: t('ovRankMemoryTitle'),
+            }),
+          ),
+        ),
+        h(OverviewAttentionSection, {
+          model,
+          t,
+          busy: props.busy,
+          onLogs: props.onLogs,
+          onStart: props.onStart,
+          onRestart: props.onRestart,
+          onSync: props.onSync,
+        }),
+        h(OverviewRunningSection, {
+          model,
+          t,
+          onLogs: props.onLogs,
+        }),
+        h(OverviewWarnings, { warnings: status.warnings ?? [], t }),
+      );
+    }
+
+    /**
+     * 健康版概览：一个 hero + 更紧凑的构成/资源/项目区块。
+     * @param {{ model: any, t: any, status: any, busy: string, onLogs: any, onStart: any, onRestart: any, onSync: any }} props
+     */
+    function OverviewHealthView(props) {
+      const { model, t, status } = props;
+      const [rankMode, setRankMode] = React.useState('cpu');
+      const total = model.apps.length || 1;
+      const cpuValues = model.history.map((sample) => Number(sample.cpuPercent) || 0);
+      const rssValues = model.history.map((sample) => Number(sample.rssBytes) || 0);
+      return h(
+        'div',
+        { className: 'dy-ov' },
+        h(
+          'section',
+          { className: 'dy-ov-card dy-ov-hero' },
+          h(
+            'div',
+            null,
+            h('div', { className: 'dy-ov-hero-kicker' }, t('ovHealthKicker')),
+            h(
+              'div',
+              { className: 'dy-ov-hero-number' },
+              h('b', null, String(model.running.length)),
+              h('span', null, format(t('ovHealthAppsRunning'), { total: model.apps.length })),
+            ),
+            h(
+              'div',
+              { className: 'dy-ov-hero-chips' },
+              h(
+                'span',
+                { className: 'dy-ov-chip success' },
+                format(t('ovHealthRunRate'), {
+                  percent: formatWholePercent((model.running.length / total) * 100, t('never')),
+                }),
+              ),
+              h(
+                'span',
+                { className: 'dy-ov-chip error' },
+                format(t('ovHealthCrashed'), { count: model.crashed.length }),
+              ),
+              h(
+                'span',
+                { className: 'dy-ov-chip warn' },
+                format(t('ovHealthMissing'), { count: model.missing.length }),
+              ),
+              h(
+                'span',
+                { className: 'dy-ov-chip warn' },
+                format(t('ovHealthRestart'), { count: model.restartRequired.length }),
+              ),
+            ),
+            h(
+              'div',
+              { className: 'dy-ov-hero-kpis' },
+              ...[
+                [t('ovHealthProjects'), String(model.projects.length)],
+                [t('ovHealthLanguages'), String(model.languageStats.length)],
+                [t('ovHealthManagers'), String(model.managerKinds)],
+                [t('ovHealthAvgUptime'), formatDurationDetailed(model.avgUptime, t)],
+              ].map(([label, value]) =>
+                h(
+                  'div',
+                  { key: label, className: 'dy-ov-hero-kpi' },
+                  h('span', null, label),
+                  h('b', null, value),
+                ),
+              ),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'dy-ov-hero-donut' },
+            h(OverviewDonut, {
+              segments: [
+                {
+                  label: t('statusRunning'),
+                  value: model.running.length,
+                  color: 'var(--dsw-alias-state-success-primary, #2ea043)',
+                },
+                {
+                  label: t('statusCrashed'),
+                  value: model.crashed.length,
+                  color: 'var(--dsw-alias-state-error-primary, #f85149)',
+                },
+                {
+                  label: t('statusStopped'),
+                  value: model.stopped.length,
+                  color: 'var(--dsw-alias-state-idle-primary, #8b949e)',
+                },
+              ],
+              centerValue: model.apps.length,
+              centerLabel: t('ovLabelApps'),
+              ariaLabel: `${t('statusRunning')} ${model.running.length}，${t('statusCrashed')} ${
+                model.crashed.length
+              }，${t('statusStopped')} ${model.stopped.length}`,
+              size: 150,
+            }),
+          ),
+          h(
+            'div',
+            { className: 'dy-ov-hero-res' },
+            h(
+              'div',
+              { className: 'dy-ov-trend-head' },
+              h('span', { className: 'dy-ov-trend-label' }, t('ovResourceCpu')),
+              h('b', null, formatPercent(model.totalCpu, t('never'))),
+              h(
+                'span',
+                { className: 'dy-ov-trend-peak' },
+                format(t('ovResourcePeak'), {
+                  value:
+                    model.cpuPeak === null ? t('never') : formatPercent(model.cpuPeak, t('never')),
+                }),
+              ),
+            ),
+            h(OverviewSparkline, {
+              values: cpuValues,
+              color: 'var(--dy-cat-brand)',
+              label: t('ovResourceTitle'),
+              gradientId: 'dy-ov-hero-spark-cpu',
+              emptyText: t('ovResourceEmpty'),
+            }),
+            h(
+              'div',
+              { className: 'dy-ov-trend-head' },
+              h('span', { className: 'dy-ov-trend-label' }, t('ovResourceMemory')),
+              h('b', null, formatSizeDetailed(model.totalRss)),
+              h(
+                'span',
+                { className: 'dy-ov-trend-peak' },
+                format(t('ovResourcePeak'), {
+                  value: model.rssPeak === null ? t('never') : formatSizeDetailed(model.rssPeak),
+                }),
+              ),
+            ),
+            h(OverviewSparkline, {
+              values: rssValues,
+              color: 'var(--dy-cat-business)',
+              label: t('ovResourceMemory'),
+              gradientId: 'dy-ov-hero-spark-rss',
+              emptyText: t('ovResourceEmpty'),
+            }),
+          ),
+        ),
+        h(
+          'section',
+          { className: 'dy-ov-block' },
+          h(OverviewBlockHead, {
+            title: t('ovHealthTechSection'),
+            hint: t('ovHealthTechSectionHint'),
+            meta: format(t('ovHealthTechMeta'), { count: model.ecoStats.length }),
+          }),
+          h(
+            'div',
+            { className: 'dy-ov-grid dy-ov-grid-3' },
+            h(OverviewLanguageCard, { model, t }),
+            h(OverviewManagerCard, { model, t }),
+            h(OverviewTechCard, { model, t }),
+          ),
+        ),
+        h(
+          'section',
+          { className: 'dy-ov-block' },
+          h(OverviewBlockHead, {
+            title: t('ovHealthResourcesSection'),
+            hint: t('ovHealthResourcesHint'),
+            meta: t('ovHealthResourcesMeta'),
+          }),
+          h(
+            'div',
+            { className: 'dy-ov-grid dy-ov-grid-health' },
+            h(OverviewResourceTrendCard, { model, t, gradientPrefix: 'dy-ov-health' }),
+            h(OverviewHostCard, { model, t }),
+            h(
+              'div',
+              { className: 'dy-ov-card' },
+              h(OverviewCardHead, {
+                title: h(
+                  React.Fragment,
+                  null,
+                  t('ovAttentionTitle'),
+                  ' ',
+                  h('span', { className: 'dy-ov-count' }, String(model.attention.length)),
+                ),
+                subtitle: t('ovAttentionSubtitle'),
+                side: t('ovAttentionMeta'),
+              }),
+              model.attention.length === 0
+                ? h('p', { className: 'dy-ov-hint' }, t('attentionEmpty'))
+                : h(
+                    'div',
+                    { className: 'dy-ov-compact-alerts' },
+                    ...model.attention.map((app) =>
+                      h(
+                        'div',
+                        { key: app.id, className: 'dy-ov-compact-alert' },
+                        h(
+                          'span',
+                          {
+                            className: `dy-ov-alert-icon ${
+                              app.status === 'crashed' ? '' : 'dy-ov-alert-icon-warn'
+                            }`,
+                          },
+                          app.status === 'crashed' ? '!' : 'i',
+                        ),
+                        h(
+                          'div',
+                          { className: 'dy-ov-alert-main' },
+                          h('div', { className: 'dy-ov-alert-title' }, app.name),
+                          h(
+                            'div',
+                            { className: 'dy-ov-alert-meta' },
+                            app.statusReason || app.reason || app.command || '',
+                          ),
+                        ),
+                        h(StatusPill, { status: app.status, t }),
+                      ),
+                    ),
+                  ),
+              h('p', { className: 'dy-ov-footnote' }, t('ovAttentionFoot')),
+            ),
+          ),
+        ),
+        h(
+          'section',
+          { className: 'dy-ov-block' },
+          h(OverviewBlockHead, {
+            title: t('ovHealthProjectSection'),
+            hint: t('ovHealthProjectHint'),
+            meta: format(t('ovLoadMeta'), {
+              cpu: formatPercent(model.totalCpu, t('never')),
+              memory: formatSizeDetailed(model.totalRss),
+            }),
+          }),
+          h(
+            'div',
+            { className: 'dy-ov-grid dy-ov-grid-project' },
+            h(OverviewProjectLoadCard, { model, t }),
+            h(OverviewRankingCard, {
+              t,
+              apps: model.running,
+              field: rankMode,
+              title: t('ovRankingTitle'),
+              merged: true,
+              mode: rankMode,
+              onModeChange: setRankMode,
+            }),
+          ),
+        ),
+        h(OverviewRunningSection, {
+          model,
+          t,
+          onLogs: props.onLogs,
+        }),
+        h(OverviewWarnings, { warnings: status.warnings ?? [], t }),
+      );
+    }
+
+    /**
+     * 概览：指标版与健康版共用同一个入口，按 mode 分发。
+     * 现有的加载、错误与空状态保持不变。
+     * @param {{ status: any, t: any, mode?: 'metrics' | 'health', busy: string, onDiscover: any, onLogs: any, onStart: any, onRestart: any, onSync: any }} props
      */
     function OverviewView(props) {
-      const {
-        status,
-        t,
-        onDiscover,
-        onLogs,
-        onStart,
-        busy,
-        confirmRemove,
-        onRemove,
-        onCancelRemove,
-      } = props;
-      const apps = status.applications;
-
+      const { status, t, mode = 'metrics' } = props;
+      const apps = Array.isArray(status.applications) ? status.applications : [];
       if (status.phase === 'loading' && apps.length === 0) {
         return h(EmptyState, { title: t('loading') });
       }
@@ -1796,460 +4969,21 @@ window.__ModuleLoader__.load({
           hint: `${t('unavailableHint')}：${status.error}`,
         });
       }
-
-      const counts = { running: 0, crashed: 0, stopped: 0, other: 0 };
-      for (const app of apps) {
-        if (app.status === 'running') counts.running += 1;
-        else if (app.status === 'crashed') counts.crashed += 1;
-        else if (app.status === 'stopped') counts.stopped += 1;
-        else counts.other += 1;
-      }
-
-      const attention = apps.filter(
-        (app) =>
-          app.status === 'crashed' ||
-          app.status === 'unknown' ||
-          app.missing === true ||
-          app.restartRequired === true,
-      );
-      const running = apps.filter((app) => app.status === 'running');
-      const totalCpu = running.reduce((sum, app) => sum + (app.cpuPercent ?? 0), 0);
-      const totalRss = running.reduce((sum, app) => sum + (app.rssBytes ?? 0), 0);
-
-      /** Host 已经按项目聚合；旧 Host 没有该字段时在客户端兜底。 */
-      const projects =
-        Array.isArray(status.projects) && status.projects.length > 0
-          ? status.projects
-          : (() => {
-              /** @type {Map<string, any>} */
-              const groups = new Map();
-              for (const app of apps) {
-                const key = app.projectId ?? 'unclassified';
-                let group = groups.get(key);
-                if (!group) {
-                  group = {
-                    id: key,
-                    name: app.projectName ?? t('unclassified'),
-                    root: app.projectRoot ?? '',
-                    apps: 0,
-                    running: 0,
-                    cpuPercent: 0,
-                    rssBytes: 0,
-                  };
-                  groups.set(key, group);
-                }
-                group.apps += 1;
-                if (app.status === 'running') {
-                  group.running += 1;
-                  group.cpuPercent += app.cpuPercent ?? 0;
-                  group.rssBytes += app.rssBytes ?? 0;
-                }
-              }
-              return [...groups.values()];
-            })();
-
-      const stats = h(
-        'div',
-        { className: 'dy-stats' },
-        [
-          ['running', t('statRunning'), counts.running, 'success'],
-          ['crashed', t('statCrashed'), counts.crashed, 'error'],
-          ['stopped', t('statStopped'), counts.stopped + counts.other, 'idle'],
-          ['projects', t('statProjects'), projects.length, 'none'],
-          ['cpu', t('statCpu'), formatPercent(totalCpu, '0.0%'), 'none'],
-          ['memory', t('statMemory'), formatBytes(totalRss), 'none'],
-        ].map(([key, label, value, tone]) =>
-          h(
-            'div',
-            { key, className: 'dy-stat', 'data-tone': tone },
-            h('div', { className: 'dy-stat-value' }, String(value)),
-            h('div', { className: 'dy-stat-label' }, String(label)),
+      if (apps.length === 0) {
+        return h(EmptyState, {
+          title: t('emptyTitle'),
+          hint: t('emptyHint'),
+          action: h(
+            'button',
+            { type: 'button', className: 'dy-btn dy-btn-primary', onClick: props.onDiscover },
+            t('emptyAction'),
           ),
-        ),
-      );
-
-      const system = status.system;
-      const systemCard = system
-        ? h(
-            'div',
-            { className: 'dy-card' },
-            h(
-              'div',
-              { className: 'dy-card-head' },
-              h('h2', { className: 'dy-card-title' }, t('systemTitle')),
-            ),
-            (() => {
-              const total = Number(system.totalmem) || 0;
-              const free = Number(system.freemem) || 0;
-              const used = Math.max(0, total - free);
-              const usedPercent = total > 0 ? (used / total) * 100 : 0;
-              return h(
-                'div',
-                { className: 'dy-system' },
-                h(
-                  'div',
-                  { className: 'dy-system-row' },
-                  h('span', { className: 'dy-system-label' }, t('systemMemory')),
-                  h(
-                    'span',
-                    { className: 'dy-system-value' },
-                    `${formatBytes(used)} / ${formatBytes(total)}`,
-                  ),
-                ),
-                h(
-                  'div',
-                  {
-                    className: 'dy-meter',
-                    role: 'progressbar',
-                    'aria-valuenow': Math.round(usedPercent),
-                    'aria-label': t('systemMemory'),
-                  },
-                  h('div', { className: 'dy-meter-fill', style: { width: `${usedPercent}%` } }),
-                ),
-                h(
-                  'div',
-                  { className: 'dy-system-grid' },
-                  h(
-                    'div',
-                    null,
-                    h('div', { className: 'dy-system-label' }, t('systemLoad')),
-                    h(
-                      'div',
-                      { className: 'dy-system-value' },
-                      (system.loadavg ?? [])
-                        .slice(0, 3)
-                        .map((value) => Number(value).toFixed(2))
-                        .join(' / '),
-                    ),
-                  ),
-                  h(
-                    'div',
-                    null,
-                    h('div', { className: 'dy-system-label' }, t('systemCores')),
-                    h('div', { className: 'dy-system-value' }, String(system.cpus ?? '—')),
-                  ),
-                  h(
-                    'div',
-                    null,
-                    h('div', { className: 'dy-system-label' }, t('systemUptime')),
-                    h(
-                      'div',
-                      { className: 'dy-system-value' },
-                      formatUptime((system.uptime ?? 0) * 1000, t),
-                    ),
-                  ),
-                ),
-              );
-            })(),
-          )
-        : null;
-
-      const maxProjectCpu = Math.max(1, ...projects.map((project) => project.cpuPercent ?? 0));
-      const maxProjectRss = Math.max(1, ...projects.map((project) => project.rssBytes ?? 0));
-      const projectLoad =
-        projects.length > 0
-          ? h(
-              'div',
-              { className: 'dy-card' },
-              h(
-                'div',
-                { className: 'dy-card-head' },
-                h('h2', { className: 'dy-card-title' }, t('projectsTitle')),
-                h('span', { className: 'dy-section-count' }, String(projects.length)),
-              ),
-              h(
-                'div',
-                { className: 'dy-load-list' },
-                ...projects.slice(0, 8).map((project) =>
-                  h(
-                    'div',
-                    { key: project.id, className: 'dy-load-row' },
-                    h(
-                      'div',
-                      { className: 'dy-load-head' },
-                      h('span', { className: 'dy-load-name' }, project.name),
-                      h(
-                        'span',
-                        { className: 'dy-load-meta' },
-                        format(t('appsRunning'), {
-                          running: project.running ?? 0,
-                          total: project.apps ?? 0,
-                        }),
-                      ),
-                      h('span', { className: 'dy-spacer' }),
-                      h(
-                        'span',
-                        { className: 'dy-load-value' },
-                        `${formatPercent(project.cpuPercent, '—')} · ${formatBytes(project.rssBytes)}`,
-                      ),
-                    ),
-                    h(
-                      'div',
-                      { className: 'dy-meter' },
-                      h('div', {
-                        className: 'dy-meter-fill',
-                        style: {
-                          width: `${Math.min(
-                            100,
-                            ((project.cpuPercent ?? 0) / maxProjectCpu) * 100,
-                          )}%`,
-                        },
-                      }),
-                    ),
-                    h(
-                      'div',
-                      { className: 'dy-meter dy-meter-secondary' },
-                      h('div', {
-                        className: 'dy-meter-fill',
-                        style: {
-                          width: `${Math.min(
-                            100,
-                            ((project.rssBytes ?? 0) / maxProjectRss) * 100,
-                          )}%`,
-                        },
-                      }),
-                    ),
-                  ),
-                ),
-              ),
-            )
-          : null;
-
-      const topBy = (field) =>
-        [...running]
-          .filter((app) => Number.isFinite(app[field]))
-          .sort((a, b) => (b[field] ?? 0) - (a[field] ?? 0))
-          .slice(0, 5);
-      const renderRanking = (title, field, formatter) => {
-        const items = topBy(field);
-        const max = Math.max(1, ...items.map((app) => app[field] ?? 0));
-        return h(
-          'div',
-          { className: 'dy-card' },
-          h('div', { className: 'dy-card-head' }, h('h2', { className: 'dy-card-title' }, title)),
-          items.length === 0
-            ? h('div', { className: 'dy-hint' }, t('noMetrics'))
-            : h(
-                'div',
-                { className: 'dy-rank-list' },
-                ...items.map((app) =>
-                  h(
-                    'div',
-                    { key: app.id, className: 'dy-rank-row' },
-                    h(
-                      'div',
-                      { className: 'dy-rank-head' },
-                      h('span', { className: 'dy-rank-name' }, app.name),
-                      h(
-                        'span',
-                        { className: 'dy-rank-project' },
-                        app.projectName ?? t('unclassified'),
-                      ),
-                      h('span', { className: 'dy-spacer' }),
-                      h('span', { className: 'dy-rank-value' }, formatter(app[field])),
-                    ),
-                    h(
-                      'div',
-                      { className: 'dy-meter' },
-                      h('div', {
-                        className: 'dy-meter-fill',
-                        style: { width: `${Math.min(100, ((app[field] ?? 0) / max) * 100)}%` },
-                      }),
-                    ),
-                  ),
-                ),
-              ),
-        );
-      };
-
-      const dashboard = h(
-        'div',
-        { className: 'dy-dashboard-grid' },
-        projectLoad,
-        renderRanking(t('topCpuTitle'), 'cpuPercent', (value) => formatPercent(value, '—')),
-        renderRanking(t('topMemoryTitle'), 'rssBytes', (value) => formatBytes(value)),
-      );
-
-      const warnings =
-        status.warnings.length > 0
-          ? h(
-              'div',
-              { className: 'dy-card' },
-              h('h2', { className: 'dy-section-title' }, t('warningsTitle')),
-              h(
-                'ul',
-                { className: 'dy-hint', style: { margin: 0, paddingLeft: 18 } },
-                ...status.warnings.map((warning, index) => h('li', { key: index }, warning)),
-              ),
-            )
-          : null;
-
-      const attentionSection =
-        attention.length > 0
-          ? h(
-              'section',
-              { className: 'dy-section' },
-              h(
-                'h2',
-                { className: 'dy-section-title' },
-                t('attentionTitle'),
-                h('span', { className: 'dy-section-count' }, String(attention.length)),
-              ),
-              h(
-                'div',
-                { className: 'dy-list' },
-                ...attention.map((app) =>
-                  h(
-                    'div',
-                    { key: app.id, className: 'dy-list-row' },
-                    h(
-                      'div',
-                      { className: 'dy-list-main' },
-                      h('span', { className: 'dy-list-title' }, app.name),
-                      h(
-                        'span',
-                        { className: 'dy-list-meta' },
-                        `${app.missing ? '[失联] ' : ''}${
-                          app.restartRequired ? '[需重启] ' : ''
-                        }${app.statusReason || app.command} · ${app.dir}`,
-                      ),
-                    ),
-                    h(StatusPill, { status: app.status, t }),
-                    h(
-                      'div',
-                      { className: 'dy-list-actions' },
-                      confirmRemove === app.id
-                        ? h(
-                            React.Fragment,
-                            null,
-                            h('span', { className: 'dy-confirm' }, t('removeConfirm')),
-                            h(
-                              'button',
-                              {
-                                type: 'button',
-                                className: 'dy-btn dy-btn-danger',
-                                disabled: busy !== '',
-                                onClick: () => onRemove(app.id),
-                              },
-                              t('actionRemove'),
-                            ),
-                            h(
-                              'button',
-                              {
-                                type: 'button',
-                                className: 'dy-btn',
-                                onClick: onCancelRemove,
-                              },
-                              t('removeCancel'),
-                            ),
-                          )
-                        : h(
-                            React.Fragment,
-                            null,
-                            h(
-                              'button',
-                              {
-                                type: 'button',
-                                className: 'dy-btn dy-btn-primary',
-                                disabled: busy !== '',
-                                onClick: () => onStart(app.id),
-                              },
-                              t('actionStart'),
-                            ),
-                            h(
-                              'button',
-                              {
-                                type: 'button',
-                                className: 'dy-btn',
-                                onClick: () => onLogs(app.id),
-                              },
-                              t('actionLogs'),
-                            ),
-                          ),
-                    ),
-                  ),
-                ),
-              ),
-            )
-          : null;
-
-      const runningSection =
-        running.length > 0
-          ? h(
-              'section',
-              { className: 'dy-section' },
-              h(
-                'h2',
-                { className: 'dy-section-title' },
-                t('runningTitle'),
-                h('span', { className: 'dy-section-count' }, String(running.length)),
-              ),
-              h(
-                'div',
-                { className: 'dy-list' },
-                ...running.map((app) =>
-                  h(
-                    'div',
-                    { key: app.id, className: 'dy-list-row' },
-                    h(
-                      'div',
-                      { className: 'dy-list-main' },
-                      h('span', { className: 'dy-list-title' }, app.name),
-                      h(
-                        'span',
-                        { className: 'dy-list-meta' },
-                        `${formatUptime(app.uptimeMs, t)} · ${formatPercent(
-                          app.cpuPercent,
-                          '—',
-                        )} · ${formatBytes(app.rssBytes)} · ${app.command} ${
-                          Array.isArray(app.args) ? app.args.join(' ') : ''
-                        } · ${app.dir}`,
-                      ),
-                    ),
-                    h(StatusPill, { status: app.status, t }),
-                    h(
-                      'div',
-                      { className: 'dy-list-actions' },
-                      h(
-                        'button',
-                        {
-                          type: 'button',
-                          className: 'dy-btn',
-                          onClick: () => onLogs(app.id),
-                        },
-                        t('actionLogs'),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            )
-          : null;
-
-      const empty =
-        apps.length === 0
-          ? h(EmptyState, {
-              title: t('emptyTitle'),
-              hint: t('emptyHint'),
-              action: h(
-                'button',
-                { type: 'button', className: 'dy-btn dy-btn-primary', onClick: onDiscover },
-                t('emptyAction'),
-              ),
-            })
-          : null;
-
-      return h(
-        React.Fragment,
-        null,
-        stats,
-        systemCard,
-        dashboard,
-        warnings,
-        attentionSection,
-        runningSection,
-        empty,
-      );
+        });
+      }
+      const model = buildOverviewModel(status);
+      return mode === 'health'
+        ? h(OverviewHealthView, { ...props, model })
+        : h(OverviewMetricsView, { ...props, model });
     }
 
     /**
@@ -3549,12 +6283,14 @@ window.__ModuleLoader__.load({
       const t = props.t ?? fallbackT;
       /** 由 apply 注入：桌面端走 preload，Web 端走 uiWorkspace 的 Host 选择器。 */
       const pickDirectory = props.pickDirectory;
-      const [tab, setTab] = React.useState('overview');
+      const [tab, setTab] = React.useState('overviewMetrics');
       const [status, setStatus] = React.useState({
         phase: 'loading',
+        generatedAt: Date.now(),
         applications: [],
         projects: [],
         system: null,
+        resourceHistory: [],
         preferences: { statusBar: readStatusBarCache() },
         sync: null,
         syncIntervalMs: 0,
@@ -4097,7 +6833,8 @@ window.__ModuleLoader__.load({
           : (status.applications.find((app) => app.id === logModalId) ?? null);
 
       const tabs = [
-        ['overview', 'tabOverview'],
+        ['overviewMetrics', 'tabOverviewMetrics'],
+        ['overviewHealth', 'tabOverviewHealth'],
         ['services', 'tabServices'],
         ['discover', 'tabDiscover'],
         ['logs', 'tabLogs'],
@@ -4172,13 +6909,13 @@ window.__ModuleLoader__.load({
         content = h(OverviewView, {
           status,
           t,
+          mode: tab === 'overviewHealth' ? 'health' : 'metrics',
           busy,
           onDiscover: () => setTab('discover'),
           onLogs: openLogs,
           onStart: (id) => act('start', { id }, `start:${id}`),
-          confirmRemove,
-          onRemove: removeApp,
-          onCancelRemove: () => setConfirmRemove(''),
+          onRestart: (id) => act('restart', { id }, `restart:${id}`),
+          onSync: onSyncNow,
         });
       }
 
@@ -4198,7 +6935,15 @@ window.__ModuleLoader__.load({
               'div',
               null,
               h('h1', { className: 'dy-title' }, t('pageTitle')),
-              h('p', { className: 'dy-subtitle' }, t('pageSubtitle')),
+              h(
+                'p',
+                { className: 'dy-subtitle' },
+                `${t('pageSubtitle')} · ${
+                  status.sync?.at
+                    ? format(t('lastSyncAt'), { time: formatClock(status.sync.at) })
+                    : t('syncNever')
+                }`,
+              ),
             ),
             h(
               'div',
@@ -4226,6 +6971,16 @@ window.__ModuleLoader__.load({
                 {
                   type: 'button',
                   className: 'dy-btn',
+                  disabled: busy !== '',
+                  onClick: () => void onSyncNow(),
+                },
+                busy === 'sync' ? t('syncing') : t('syncNow'),
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dy-btn dy-btn-primary',
                   onClick: () => void loadStatus(),
                 },
                 t('refresh'),

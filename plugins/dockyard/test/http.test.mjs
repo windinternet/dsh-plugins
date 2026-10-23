@@ -33,6 +33,7 @@ function makeService(overrides = {}) {
     list: async () => [{ id: 'a', name: 'A', status: 'running' }],
     listProjects: async () => [{ id: 'project:/a', name: 'A', apps: 1, running: 1 }],
     systemSnapshot: () => ({ totalmem: 1, freemem: 1, cpus: 1, loadavg: [0, 0, 0], uptime: 1 }),
+    resourceHistory: [{ at: 1, cpuPercent: 2, rssBytes: 3, apps: 1 }],
     lastSync: null,
     syncIntervalMs: 0,
     syncProjects: async () => {
@@ -228,6 +229,7 @@ test('status：返回应用、扫描根目录与诊断，且不带 CORS 头', as
   assert.deepEqual(body.scanRoots, ['/work']);
   assert.deepEqual(body.warnings, []);
   assert.deepEqual(body.preferences, { statusBar: true });
+  assert.deepEqual(body.resourceHistory, [{ at: 1, cpuPercent: 2, rssBytes: 3, apps: 1 }]);
   assert.equal(res.headers['access-control-allow-origin'], undefined);
 });
 

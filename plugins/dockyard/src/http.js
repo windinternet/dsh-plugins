@@ -373,6 +373,10 @@ export function createDockyardHandlers(service) {
           applications,
           projects: await service.listProjects(),
           system: service.systemSnapshot(),
+          // 概览趋势只取最近 120 个聚合点；旧 Host 没有该字段时给空数组。
+          resourceHistory: Array.isArray(service.resourceHistory)
+            ? service.resourceHistory.slice(-120)
+            : [],
           sync: service.lastSync,
           syncIntervalMs: service.syncIntervalMs,
           autoTakeover: service.autoTakeover === true,
