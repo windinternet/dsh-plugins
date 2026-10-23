@@ -5253,14 +5253,28 @@ window.__ModuleLoader__.load({
               'div',
               { className: 'dy-svc-row-title' },
               h('span', { className: 'dy-service-name' }, app.name),
-              h(
-                'span',
-                {
-                  className: `dy-badge ${managed ? 'dy-badge-ok' : 'dy-badge-warn'}`,
-                  title: managed ? t('managedBadge') : t('externalAppsHint'),
-                },
-                managed ? t('managedBadge') : t('unmanagedBadge'),
-              ),
+              /** 托管/非托管只对“正在运行”的应用有意义；停止态没有归属问题，
+               * 一排“托管”会让人误以为它们会被自动拉起。 */
+              managed && running
+                ? h(
+                    'span',
+                    {
+                      className: 'dy-badge dy-badge-ok',
+                      title: t('managedBadge'),
+                    },
+                    t('managedBadge'),
+                  )
+                : null,
+              !managed
+                ? h(
+                    'span',
+                    {
+                      className: 'dy-badge dy-badge-warn',
+                      title: t('externalAppsHint'),
+                    },
+                    t('unmanagedBadge'),
+                  )
+                : null,
               ...renderAppTags(app),
               managed ? renderGuardBadge(app) : null,
               app.missing
