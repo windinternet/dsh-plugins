@@ -703,40 +703,48 @@ async function detectGradle(project) {
 }
 
 /**
- * PHP / Composer：Laravel artisan、Symfony console 或 composer scripts。
- * @param {Project} project
+ * 判定一个 Composer 目录里能作为长期服务运行的入口。
+ *
+ * 只认框架明示的 CLI、composer 脚本，最后才退回 PHP 内置服务器。兜底之所以按
+ * `public/index.php` 而不是某个启动脚本的名字：入口文件是框架事实，启动脚本的
+ * 文件名与实现因项目而异，不能作为识别依据。
+ *
+ * @param {string} dir
+ * @param {Record<string, any>} composer
+ * @returns {Promise<{ entry: string, command: string, args: string[], reason: string, scriptName?: string } | null>}
  */
-async function detectPhp(project) {
-  const root = project.root;
-  const composerFile = join(root, 'composer.json');
-  if (!(await isFile(composerFile))) return;
-  const composer = await readJsonObject(composerFile, project);
-  if (!composer) return;
-
-  const group = addGroup(project, 'php-composer', 'PHP (Composer)', 'PHP', 'Composer');
-  if (await isFile(join(root, 'artisan'))) {
-    addApp(group, project, {
-      id: `php:${root}:artisan`,
-      name: composer.name ?? project.name,
-      dir: root,
-      runner: 'php',
+async function pickPhpEntry(dir, composer) {
+  if (await isFile(join(dir, 'artisan'))) {
+    return {
+      entry: 'artisan',
       command: 'php',
       args: ['artisan', 'serve'],
       reason: '存在 artisan；识别为 Laravel / PHP (Composer) 应用',
-    });
-    return;
+    };
   }
-  if (await isFile(join(root, 'bin', 'console'))) {
-    addApp(group, project, {
-      id: `php:${root}:console`,
-      name: composer.name ?? project.name,
-      dir: root,
-      runner: 'php',
+  if (await isFile(join(dir, 'bin', 'console'))) {
+    return {
+      entry: 'console',
       command: 'php',
       args: ['bin/console', 'server:run'],
       reason: '存在 bin/console；识别为 Symfony / PHP (Composer) 应用',
-    });
-    return;
+    };
+  }
+  if (await isFile(join(dir, 'think'))) {
+    const requires =
+      composer.require && typeof composer.require === 'object' && !Array.isArray(composer.require)
+        ? composer.require
+        : {};
+    const usesThinkPhp = Object.keys(requires).some((name) => name === 'topthink/framework');
+    if (usesThinkPhp) {
+      return {
+        entry: 'think',
+        command: 'php',
+        args: ['think', 'run', '--host=127.0.0.1', '--port=8000'],
+        reason:
+          '存在 think CLI 且 composer.json 依赖 topthink/framework；识别为 ThinkPHP / PHP (Composer) 应用',
+      };
+    }
   }
   const scripts =
     composer.scripts && typeof composer.scripts === 'object' && !Array.isArray(composer.scripts)
@@ -745,23 +753,85 @@ async function detectPhp(project) {
   const picked = selectRunScripts(scripts);
   if (picked.length > 0) {
     const primary = pickPrimaryScript(picked);
-    addApp(group, project, {
-      id: `php:${root}:${primary.name}`,
-      name: composer.name ?? project.name,
-      dir: root,
-      runner: 'php',
+    return {
+      entry: primary.name,
       command: 'composer',
       args: ['run', primary.name],
       scriptName: primary.name,
       reason: `composer.json 的 scripts["${primary.name}"]；识别为 PHP (Composer) 应用`,
-    });
-    return;
+    };
   }
+  if (await isFile(join(dir, 'public', 'index.php'))) {
+    const hasRouter = await isFile(join(dir, 'public', 'router.php'));
+    return {
+      entry: hasRouter ? 'public/router.php' : 'public/index.php',
+      command: 'php',
+      args: ['-S', '127.0.0.1:8000', '-t', 'public', ...(hasRouter ? ['public/router.php'] : [])],
+      reason: hasRouter
+        ? '存在 public/index.php 与 public/router.php；未发现框架启动入口，使用 PHP 内置服务器托管 public/ 目录'
+        : '存在 public/index.php；未发现框架启动入口，使用 PHP 内置服务器托管 public/ 目录',
+    };
+  }
+  return null;
+}
+
+/**
+ * PHP / Composer：项目根与直接子目录里的 Composer 应用。
+ *
+ * 前后端同仓很常见（例如 `server/` + `pc/`），PHP 应用未必在项目根上；只扫根会
+ * 漏掉整个后端，项目也就无法完整启动。子目录范围与 Node 的“第一层子包”一致，
+ * 不进入嵌套 git 仓库。
+ *
+ * @param {Project} project
+ * @param {ScanState} state
+ */
+async function detectPhp(project, state) {
+  const root = project.root;
+  /** @type {string[]} */
+  const composerDirs = [];
+  if (await isFile(join(root, 'composer.json'))) composerDirs.push(root);
+  for (const child of await readChildDirs(root, state)) {
+    const childPath = join(root, child);
+    if (await isGitRepo(childPath)) continue;
+    if (await isFile(join(childPath, 'composer.json'))) composerDirs.push(childPath);
+  }
+  if (composerDirs.length === 0) return;
+
+  const group = addGroup(project, 'php-composer', 'PHP (Composer)', 'PHP', 'Composer');
+  let detected = 0;
+  /** @type {string[]} */
+  const withoutEntry = [];
+  for (const dir of composerDirs) {
+    const composerFile = join(dir, 'composer.json');
+    const composer = await readJsonObject(composerFile, project);
+    if (!composer) continue;
+    const entry = await pickPhpEntry(dir, composer);
+    if (!entry) {
+      withoutEntry.push(composerFile);
+      continue;
+    }
+    addApp(group, project, {
+      id: `php:${dir}:${entry.entry}`,
+      name: dir === root ? (composer.name ?? project.name) : basename(dir),
+      dir,
+      runner: 'php',
+      command: entry.command,
+      args: entry.args,
+      scriptName: entry.scriptName,
+      reason: entry.reason,
+    });
+    detected += 1;
+  }
+
+  if (detected > 0) return;
   project.ecosystems = project.ecosystems.filter((item) => item.id !== group.id);
-  project.diagnostics.push({
-    path: composerFile,
-    message: 'PHP / Composer 项目未发现 artisan、bin/console 或 dev/start 脚本。',
-  });
+  for (const composerFile of withoutEntry) {
+    project.diagnostics.push({
+      path: composerFile,
+      message:
+        'PHP / Composer 项目未发现 artisan、bin/console、think 入口、dev/start 脚本或 public/index.php。',
+    });
+  }
 }
 
 /**
@@ -1045,7 +1115,7 @@ async function scanProject(root, container, state) {
   await detectNode(project, state);
   await detectMaven(project, state);
   await detectGradle(project);
-  await detectPhp(project);
+  await detectPhp(project, state);
   await detectFlutter(project);
   await detectGo(project, state);
   await detectRust(project, state);

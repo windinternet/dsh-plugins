@@ -270,6 +270,59 @@ test('PHP / Composer：Laravel artisan 识别为可运行应用', async () => {
   }
 });
 
+test('PHP / Composer：子目录里的 ThinkPHP 应用也能识别（不依赖自定义启动脚本）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-scan-thinkphp-'));
+  try {
+    await git(dir);
+    await write(
+      join(dir, 'package.json'),
+      JSON.stringify({ name: 'web', scripts: { dev: 'vite' } }),
+    );
+    await write(
+      join(dir, 'server', 'composer.json'),
+      JSON.stringify({ name: 'topthink/think', require: { 'topthink/framework': '^6.0' } }),
+    );
+    await write(join(dir, 'server', 'think'), '#!/usr/bin/env php\n<?php\nnamespace think;\n');
+    await write(join(dir, 'server', 'public', 'index.php'), '<?php');
+    await write(join(dir, 'server', 'public', 'router.php'), '<?php');
+
+    const result = await scanProjects(dir);
+    const group = result.projects[0]?.ecosystems.find((item) => item.id === 'php-composer');
+    assert.ok(group);
+    assert.deepEqual(
+      group.apps.map((app) => [app.name, app.dir, app.command, app.args.join(' ')]),
+      [['server', join(dir, 'server'), 'php', 'think run --host=127.0.0.1 --port=8000']],
+    );
+    // 根上的 Node 应用不受影响，前后端同仓时两边都能被看见。
+    assert.ok(result.projects[0]?.ecosystems.some((item) => item.id === 'node-npm'));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('PHP / Composer：没有框架入口时退回 public/ 的 PHP 内置服务器', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-scan-php-builtin-'));
+  try {
+    await git(dir);
+    await write(
+      join(dir, 'composer.json'),
+      JSON.stringify({ name: 'demo/php', require: { php: '>=8.0' } }),
+    );
+    await write(join(dir, 'public', 'index.php'), '<?php');
+    await write(join(dir, 'public', 'router.php'), '<?php');
+
+    const result = await scanProjects(dir);
+    const group = result.projects[0]?.ecosystems.find((item) => item.id === 'php-composer');
+    assert.ok(group);
+    assert.deepEqual(
+      group.apps.map((app) => [app.command, app.args.join(' ')]),
+      [['php', '-S 127.0.0.1:8000 -t public public/router.php']],
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('Flutter：pubspec 依赖 flutter 时识别为 flutter run', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dockyard-scan-flutter-'));
   try {

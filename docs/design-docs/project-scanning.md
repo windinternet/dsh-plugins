@@ -101,9 +101,16 @@ git 是项目最硬的事实依据，但不是唯一依据：有些目录确实�
 
 ### PHP / Composer
 
+- 在项目根与直接子目录里查找 `composer.json`（`server/` 这类前后端同仓布局也要能识别；
+  跳过嵌套 git 仓库与忽略目录）。同一个项目里的多个 Composer 目录各自产出一个应用。
 - `artisan` → `php artisan serve`（Laravel）。
 - `bin/console` → `php bin/console server:run`（Symfony）。
+- `think` + `composer.json` 依赖 `topthink/framework` → `php think run --host=127.0.0.1 --port=8000`
+  （ThinkPHP）。
 - 否则从 `composer.json` 的 `scripts` 里选 `dev/start/serve`。
+- 最后兜底：存在 `public/index.php` 时用 `php -S 127.0.0.1:8000 -t public`，有
+  `public/router.php` 时把它作为路由脚本。兜底只看入口文件，不依赖项目自带的启动脚本
+  文件名或实现。
 
 ### Flutter
 
@@ -193,6 +200,7 @@ RunnableApp
 - git 判定只做 `.git` 存在性检查，不区分分支、子模块或 bare 仓库。
 - 递归穿过非 git 目录有深度上限（6 层）与目录总数上限（4000）；极深的容器需要直接扫描内层目录。
 - Gradle 只识别根项目的 Spring Boot，不解析多模块 `include`。
+- PHP 只检查项目根与直接子目录的 `composer.json`，不会向更深层递归。
 - Flutter 的 `flutter run` 设备选择、Maven/npm 的首次依赖安装都交给命令自身。
 - 无 git 且无根清单的目录不会被猜成项目。
 
