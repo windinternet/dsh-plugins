@@ -151,6 +151,18 @@ function makeService(overrides = {}) {
       calls.push(['takeoverAll']);
       return { takenOver: 1, started: ['a'], failed: [], skipped: [], reason: 'ok' };
     },
+    guardPolicy: {
+      enabled: true,
+      maxRetries: 5,
+      backoffBaseMs: 2000,
+      backoffMaxMs: 60000,
+      resetAfterMs: 60000,
+    },
+    setGuardPolicy: async (/** @type {any} */ patch) => {
+      if (typeof patch.enabled !== 'boolean') throw new TypeError('enabled 必须是布尔值。');
+      calls.push(['setGuardPolicy', patch]);
+      return { ...service.guardPolicy, ...patch };
+    },
   };
   return Object.assign(service, overrides);
 }
@@ -257,6 +269,7 @@ test('status：返回应用、扫描根目录与诊断，且不带 CORS 头', as
   assert.equal(body.externalApps[0].id, 'a');
   assert.equal(body.externalApps[0].processes, undefined);
   assert.equal(body.externalUnmatched, 0);
+  assert.equal(body.guardPolicy.maxRetries, 5);
   assert.equal(res.headers['access-control-allow-origin'], undefined);
 });
 
@@ -507,6 +520,34 @@ test('external：按 root 查询外部进程；takeover 走项目接管', async 
   );
   assert.equal(allTakeover.statusCode, 200);
   assert.deepEqual(service.calls.at(-1), ['takeoverAll']);
+});
+
+test('action：set-guard-policy 校验并保存策略', async () => {
+  const service = makeService();
+  const handlers = createDockyardHandlers(/** @type {any} */ (service));
+
+  const ok = makeRes();
+  await handlers.action(
+    makeReq({
+      method: 'POST',
+      headers: ACTION_HEADERS,
+      body: { action: 'set-guard-policy', policy: { enabled: false, maxRetries: 3 } },
+    }),
+    /** @type {any} */ (ok),
+  );
+  assert.equal(ok.statusCode, 200);
+  assert.deepEqual(service.calls.at(-1), ['setGuardPolicy', { enabled: false, maxRetries: 3 }]);
+
+  const bad = makeRes();
+  await handlers.action(
+    makeReq({
+      method: 'POST',
+      headers: ACTION_HEADERS,
+      body: { action: 'set-guard-policy', policy: { maxRetries: 3 } },
+    }),
+    /** @type {any} */ (bad),
+  );
+  assert.equal(bad.statusCode, 400);
 });
 
 test('action：sync 触发周期同步', async () => {

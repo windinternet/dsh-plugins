@@ -20,7 +20,7 @@ import {
   isProcessAlive,
 } from './internal/process-supervisor.js';
 import { readTail } from './internal/log-buffer.js';
-import { StateStore } from './store.js';
+import { StateStore, defaultGuardPolicy } from './store.js';
 import { sampleProcessGroup } from './metrics.js';
 import { listExternalProcesses, terminateExternalProcess } from './processes.js';
 
@@ -115,6 +115,8 @@ export class DockyardService {
      * @type {null | { at: number, value: { apps: any[], unmatched: number, error: string } }}
      */
     this.externalAppsCache = null;
+    /** @type {Map<string, ReturnType<typeof setTimeout>>} 守护重试定时器 */
+    this.guardTimers = new Map();
     /** @type {ReturnType<typeof setInterval> | null} */
     this.metricsTimer = null;
     this.metricsSampling = false;
@@ -295,6 +297,9 @@ export class DockyardService {
             record.missing = true;
             record.missingAt = now;
             missing += 1;
+            if (record.guard?.active) {
+              this.#deactivateGuard(record, '应用已失联，守护暂停。');
+            }
           }
         }
       }
@@ -701,6 +706,7 @@ export class DockyardService {
       };
     }
     for (const record of records) {
+      this.#clearGuardTimer(record.id);
       this.store.remove(record.id);
     }
     await this.store.save();
@@ -722,6 +728,7 @@ export class DockyardService {
     if (this.processes.has(id) || record.status === 'running') {
       return { removed: false, reason: '应用处于运行状态，请先停止再移除。' };
     }
+    this.#clearGuardTimer(id);
     this.store.remove(id);
     this.metrics.delete(id);
     this.metricsHistory.delete(id);
@@ -749,6 +756,7 @@ export class DockyardService {
           record.statusReason = '进程已消失，但未收到退出通知，状态由探测更正。';
           record.pid = undefined;
           changed = true;
+          this.#scheduleGuardRetry(record.id);
         }
       }
       const app = {
@@ -765,6 +773,7 @@ export class DockyardService {
         processCount:
           record.status === 'running' ? this.metrics.get(record.id)?.processCount : undefined,
         metricsAt: record.status === 'running' ? this.metrics.get(record.id)?.at : undefined,
+        guard: record.guard,
         projectId: record.projectId,
         projectName: record.projectName,
         projectRoot: record.projectRoot,
@@ -1053,12 +1062,193 @@ export class DockyardService {
     return this.takeoverProject(projectId);
   }
 
+  /** 当前保活/退避策略。 */
+  get guardPolicy() {
+    return this.store.state.guardPolicy ?? defaultGuardPolicy();
+  }
+
   /**
-   * 启动一个应用。
+   * 更新保活策略。只影响后续的手动启动/接管与重试，不会启动或停止任何应用。
+   * @param {Partial<import('./store.js').GuardPolicy>} patch
+   * @returns {Promise<import('./store.js').GuardPolicy>}
+   */
+  async setGuardPolicy(patch) {
+    const current = this.guardPolicy;
+    /** @type {any} */
+    const next = { ...current, ...(patch ?? {}) };
+    if (typeof next.enabled !== 'boolean') throw new TypeError('enabled 必须是布尔值。');
+    const integer = (
+      /** @type {string} */ key,
+      /** @type {number} */ min,
+      /** @type {number} */ max,
+    ) => {
+      const value = next[key];
+      if (!Number.isInteger(value) || Number(value) < min || Number(value) > max) {
+        throw new TypeError(`${key} 必须是 ${min}..${max} 之间的整数。`);
+      }
+      next[key] = Number(value);
+    };
+    integer('maxRetries', 0, 20);
+    integer('backoffBaseMs', 500, 600000);
+    integer('backoffMaxMs', 500, 3600000);
+    integer('resetAfterMs', 1000, 86400000);
+    if (next.backoffMaxMs < next.backoffBaseMs) {
+      throw new TypeError('backoffMaxMs 不能小于 backoffBaseMs。');
+    }
+
+    this.store.state.guardPolicy = next;
+    if (!next.enabled) {
+      for (const record of this.store.list()) {
+        if (record.guard?.active) {
+          this.#deactivateGuard(record, '保活策略已关闭，守护停止。', false);
+        }
+      }
+    }
+    await this.store.save();
+    return next;
+  }
+
+  /** @param {string} id */
+  #clearGuardTimer(id) {
+    const timer = this.guardTimers.get(id);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      this.guardTimers.delete(id);
+    }
+  }
+
+  /**
+   * @param {any} record
+   * @param {string} reason
+   * @param {boolean} [exhausted]
+   */
+  #deactivateGuard(record, reason, exhausted = false) {
+    this.#clearGuardTimer(record.id);
+    if (!record.guard) return;
+    record.guard = {
+      ...record.guard,
+      active: false,
+      nextAttemptAt: undefined,
+      exhausted,
+      reason,
+    };
+  }
+
+  /**
+   * 手动启动/接管时开启守护。关闭保活策略时只记录"未开启"，不安排重试。
+   * @param {any} record
+   */
+  #armGuard(record) {
+    const policy = this.guardPolicy;
+    this.#clearGuardTimer(record.id);
+    record.guard = {
+      active: policy.enabled,
+      attempts: 0,
+      lastStartAt: Date.now(),
+      exhausted: false,
+      reason: policy.enabled
+        ? '手动启动，守护已开启。'
+        : '手动启动；保活策略已关闭，不会自动重试。',
+    };
+  }
+
+  /**
+   * 异常退出后安排下一次重试。只有手动启动/接管过的应用才有 active 守护。
+   * @param {string} id
+   */
+  #scheduleGuardRetry(id) {
+    const record = this.store.get(id);
+    if (!record || record.guard?.active !== true) return;
+    const policy = this.guardPolicy;
+    if (!policy.enabled) {
+      this.#deactivateGuard(record, '保活策略已关闭，守护停止。', false);
+      void this.store.save();
+      return;
+    }
+    const now = Date.now();
+    // 稳定运行超过 resetAfterMs 后，下一次异常重新从第 1 次开始计数。
+    if (
+      record.guard.lastStartAt !== undefined &&
+      now - record.guard.lastStartAt >= policy.resetAfterMs
+    ) {
+      record.guard.attempts = 0;
+    }
+    const attempts = record.guard.attempts ?? 0;
+    if (attempts >= policy.maxRetries) {
+      this.#deactivateGuard(record, `连续自动重试 ${attempts} 次仍失败，守护已停止。`, true);
+      void this.store.save();
+      return;
+    }
+    const delay = Math.min(policy.backoffMaxMs, policy.backoffBaseMs * 2 ** attempts);
+    record.guard.lastFailureAt = now;
+    record.guard.nextAttemptAt = now + delay;
+    record.guard.reason = `进程异常退出；${Math.max(
+      1,
+      Math.round(delay / 1000),
+    )} 秒后重试（${attempts + 1}/${policy.maxRetries}）。`;
+    void this.store.save();
+    this.#clearGuardTimer(id);
+    const timer = setTimeout(() => {
+      this.guardTimers.delete(id);
+      void this.#retryGuard(id);
+    }, delay);
+    timer.unref?.();
+    this.guardTimers.set(id, timer);
+  }
+
+  /**
+   * 定时器到点后执行一次自动重试。
+   * @param {string} id
+   */
+  async #retryGuard(id) {
+    const record = this.store.get(id);
+    if (!record || record.guard?.active !== true) return;
+    const policy = this.guardPolicy;
+    if (!policy.enabled) {
+      this.#deactivateGuard(record, '保活策略已关闭，守护停止。', false);
+      await this.store.save();
+      return;
+    }
+    const attempts = record.guard.attempts ?? 0;
+    if (attempts >= policy.maxRetries) {
+      this.#deactivateGuard(record, `连续自动重试 ${attempts} 次仍失败，守护已停止。`, true);
+      await this.store.save();
+      return;
+    }
+    record.guard.attempts = attempts + 1;
+    record.guard.nextAttemptAt = undefined;
+    record.guard.reason = `第 ${attempts + 1} 次自动重试。`;
+    await this.store.save();
+    await this.#startApp(id);
+  }
+
+  /**
+   * 启动一个应用（手动入口）。手动启动会重新开启守护并清零重试计数。
    * @param {string} id
    * @returns {Promise<{ started: boolean, reason: string, pid?: number }>}
    */
   async start(id) {
+    const record = this.store.get(id);
+    if (!record) return { started: false, reason: `没有 id 为 ${id} 的应用。` };
+
+    if (this.processes.has(id)) {
+      const handle = this.processes.get(id);
+      if (handle && isProcessAlive(handle.pid)) {
+        return { started: false, reason: `应用已在运行（pid ${handle.pid}）。` };
+      }
+      this.processes.delete(id);
+    }
+
+    this.#armGuard(record);
+    return this.#startApp(id);
+  }
+
+  /**
+   * 实际拉起进程。手动启动和自动重试共用，避免两条路径行为分叉。
+   * @param {string} id
+   * @returns {Promise<{ started: boolean, reason: string, pid?: number }>}
+   */
+  async #startApp(id) {
     const record = this.store.get(id);
     if (!record) return { started: false, reason: `没有 id 为 ${id} 的应用。` };
 
@@ -1109,6 +1299,7 @@ export class DockyardService {
               : `进程异常退出（code=${detail.code} signal=${detail.signal}）。`,
           );
           void this.store.save();
+          if (status !== 'stopped') this.#scheduleGuardRetry(id);
         },
       });
 
@@ -1119,6 +1310,11 @@ export class DockyardService {
       record.startedAt = Date.now();
       record.stoppedAt = undefined;
       record.exitCode = undefined;
+      if (record.guard?.active) {
+        record.guard.lastStartAt = Date.now();
+        record.guard.nextAttemptAt = undefined;
+        record.guard.reason = `守护中；已自动重试 ${record.guard.attempts ?? 0} 次。`;
+      }
       await this.store.save();
       await this.#appendSystemLog(record.logFile, `已启动（pid ${handle.pid}）。`);
       return { started: true, reason: `已启动（pid ${handle.pid}）。`, pid: handle.pid };
@@ -1128,6 +1324,7 @@ export class DockyardService {
       record.pid = undefined;
       await this.store.save();
       await this.#appendSystemLog(record.logFile, record.statusReason);
+      if (record.guard?.active) this.#scheduleGuardRetry(id);
       return { started: false, reason: record.statusReason };
     }
   }
@@ -1140,6 +1337,13 @@ export class DockyardService {
   async stop(id) {
     const record = this.store.get(id);
     if (!record) return { stopped: false, reason: `没有 id 为 ${id} 的应用。` };
+
+    // 手动停止（包括非托管应用的停止）必须关掉守护，避免停止后又被自动拉起。
+    if (record.guard?.active) {
+      this.#deactivateGuard(record, '用户手动停止，守护已关闭。');
+    } else {
+      this.#clearGuardTimer(id);
+    }
 
     const handle = this.processes.get(id);
     if (!handle) {
@@ -1256,6 +1460,13 @@ export class DockyardService {
   async shutdown(options = {}) {
     this.#stopMetrics();
     this.#stopSync();
+    for (const record of this.store.list()) {
+      if (record.guard?.active) {
+        this.#deactivateGuard(record, '宿主关闭，守护已暂停；重新打开宿主后需手动启动才能恢复。');
+      } else {
+        this.#clearGuardTimer(record.id);
+      }
+    }
 
     if (options.killProcesses) {
       let killed = 0;

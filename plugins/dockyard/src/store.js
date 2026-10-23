@@ -72,6 +72,27 @@ export const APP_RUNNERS = /** @type {const} */ ([
  * @property {number} [exitCode] 最近一次的退出码
  * @property {string} logFile 日志文件路径
  * @property {number} addedAt 加入时间（毫秒）
+ * @property {GuardState} [guard] 守护状态；旧记录没有该字段
+ */
+
+/**
+ * @typedef {object} GuardState
+ * @property {boolean} active 是否处于守护状态
+ * @property {number} attempts 已经执行过的自动重试次数
+ * @property {number} [nextAttemptAt] 下一次重试时间（毫秒）
+ * @property {number} [lastStartAt] 最近一次启动时间（用于稳定运行后重置计数）
+ * @property {number} [lastFailureAt] 最近一次异常退出时间
+ * @property {boolean} [exhausted] 是否因达到重试上限而停止守护
+ * @property {string} [reason] 面向用户的守护原因
+ */
+
+/**
+ * @typedef {object} GuardPolicy
+ * @property {boolean} enabled 全局保活开关
+ * @property {number} maxRetries 连续自动重试次数上限
+ * @property {number} backoffBaseMs 首次重试的退避基数（毫秒）
+ * @property {number} backoffMaxMs 单次退避的时间上限（毫秒）
+ * @property {number} resetAfterMs 稳定运行多久后重置重试计数（毫秒）
  */
 
 /**
@@ -85,6 +106,7 @@ export const APP_RUNNERS = /** @type {const} */ ([
  * @property {string[]} scanRoots 用户配置的扫描根目录
  * @property {Record<string, ApplicationRecord>} applications 以 id 为键的应用表
  * @property {DockyardPreferences} preferences 界面偏好；与进程状态分开存，避免被状态推导覆盖
+ * @property {GuardPolicy} guardPolicy 保活/退避策略；与进程状态分开存
  * @property {number} updatedAt 最近一次写入时间
  */
 
@@ -100,6 +122,60 @@ export function defaultPreferences() {
 }
 
 /**
+ * 默认保活策略：只对用户手动启动/接管的应发生效，绝不自动启动未运行的应用。
+ * @returns {GuardPolicy}
+ */
+export function defaultGuardPolicy() {
+  return {
+    enabled: true,
+    maxRetries: 5,
+    backoffBaseMs: 2000,
+    backoffMaxMs: 60000,
+    resetAfterMs: 60000,
+  };
+}
+
+/**
+ * 把不可信的保活策略归一化。状态文件解析使用它；服务层写入前另有严格校验。
+ * @param {unknown} raw
+ * @param {string[]} [problems]
+ * @returns {GuardPolicy}
+ */
+export function normalizeGuardPolicy(raw, problems = []) {
+  /** @type {any} */
+  const policy = defaultGuardPolicy();
+  if (raw === undefined) return policy;
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    problems.push('guardPolicy 不是对象，已使用默认保活策略。');
+    return policy;
+  }
+  const source = /** @type {Record<string, unknown>} */ (raw);
+  if (typeof source.enabled === 'boolean') policy.enabled = source.enabled;
+  else if (source.enabled !== undefined) {
+    problems.push('guardPolicy.enabled 不是布尔值，已使用默认值。');
+  }
+  const integer = (
+    /** @type {string} */ key,
+    /** @type {number} */ min,
+    /** @type {number} */ max,
+  ) => {
+    const value = source[key];
+    if (value === undefined) return;
+    if (Number.isInteger(value) && Number(value) >= min && Number(value) <= max) {
+      policy[key] = Number(value);
+    } else {
+      problems.push(`guardPolicy.${key} 不在 ${min}..${max} 范围内，已使用默认值。`);
+    }
+  };
+  integer('maxRetries', 0, 20);
+  integer('backoffBaseMs', 500, 600000);
+  integer('backoffMaxMs', 500, 3600000);
+  integer('resetAfterMs', 1000, 86400000);
+  if (policy.backoffMaxMs < policy.backoffBaseMs) policy.backoffMaxMs = policy.backoffBaseMs;
+  return policy;
+}
+
+/**
  * 建一个空状态。
  * @returns {DockyardState}
  */
@@ -109,6 +185,7 @@ export function emptyState() {
     scanRoots: [],
     applications: {},
     preferences: defaultPreferences(),
+    guardPolicy: defaultGuardPolicy(),
     updatedAt: Date.now(),
   };
 }
@@ -179,12 +256,15 @@ export function parseState(raw) {
     }
   }
 
+  const guardPolicy = normalizeGuardPolicy(source.guardPolicy, problems);
+
   return {
     state: {
       version: STATE_VERSION,
       scanRoots,
       applications,
       preferences,
+      guardPolicy,
       updatedAt: Number.isFinite(source.updatedAt) ? Number(source.updatedAt) : Date.now(),
     },
     problems,
@@ -266,6 +346,35 @@ function parseApplication(id, value, problems) {
     exitCode: Number.isFinite(raw.exitCode) ? Number(raw.exitCode) : undefined,
     logFile: typeof raw.logFile === 'string' ? raw.logFile : '',
     addedAt: Number.isFinite(raw.addedAt) ? Number(raw.addedAt) : Date.now(),
+    guard: parseGuard(raw.guard, problems, id),
+  };
+}
+
+/**
+ * 解析单条守护状态。字段坏了就丢掉守护，宁可保守也不要拿脏数据去重试。
+ * @param {unknown} raw
+ * @param {string[]} problems
+ * @param {string} id
+ * @returns {GuardState | undefined}
+ */
+function parseGuard(raw, problems, id) {
+  if (raw === undefined) return undefined;
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    problems.push(`应用 ${id} 的 guard 不是对象，已忽略守护状态。`);
+    return undefined;
+  }
+  const source = /** @type {Record<string, unknown>} */ (raw);
+  return {
+    active: source.active === true,
+    attempts:
+      Number.isFinite(source.attempts) && Number(source.attempts) >= 0
+        ? Math.floor(Number(source.attempts))
+        : 0,
+    nextAttemptAt: Number.isFinite(source.nextAttemptAt) ? Number(source.nextAttemptAt) : undefined,
+    lastStartAt: Number.isFinite(source.lastStartAt) ? Number(source.lastStartAt) : undefined,
+    lastFailureAt: Number.isFinite(source.lastFailureAt) ? Number(source.lastFailureAt) : undefined,
+    exhausted: source.exhausted === true,
+    reason: typeof source.reason === 'string' ? source.reason : undefined,
   };
 }
 
@@ -324,6 +433,14 @@ export class StateStore {
         record.statusReason =
           '宿主进程已重启，无法确认该进程是否仍在运行，请重新启动或标记为已停止。';
         record.pid = undefined;
+      }
+      if (record.guard?.active) {
+        record.guard = {
+          ...record.guard,
+          active: false,
+          nextAttemptAt: undefined,
+          reason: '宿主重启，守护已暂停；重新手动启动后恢复。',
+        };
       }
     }
     this.state = state;

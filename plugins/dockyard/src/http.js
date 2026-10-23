@@ -343,6 +343,18 @@ async function dispatchAction(service, body) {
     }
     case 'sync':
       return service.syncProjects();
+    case 'set-guard-policy': {
+      const policy = body.policy;
+      if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {
+        throw new HttpError(400, 'policy 必须是对象。');
+      }
+      try {
+        return await service.setGuardPolicy(policy);
+      } catch (error) {
+        if (error instanceof TypeError) throw new HttpError(400, error.message);
+        throw error;
+      }
+    }
     case 'set-status-bar':
       return service.setStatusBarVisible(requireBoolean(body.visible, 'visible'));
     default:
@@ -384,6 +396,7 @@ export function createDockyardHandlers(service) {
           }),
           externalUnmatched: external.unmatched,
           externalError: external.error,
+          guardPolicy: service.guardPolicy,
           projects: await service.listProjects(),
           system: service.systemSnapshot(),
           // 概览趋势只取最近 120 个聚合点；旧 Host 没有该字段时给空数组。

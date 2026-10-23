@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DockyardService, candidateId, renderLogLines } from '../src/service.js';
-import { parseState, emptyState, STATE_VERSION } from '../src/store.js';
+import { parseState, emptyState, STATE_VERSION, StateStore } from '../src/store.js';
 
 /**
  * 这一组测试用真实子进程验证编排逻辑。
@@ -221,6 +221,8 @@ test('启动 → 状态为运行中且进程真实存在 → 停止后进程消�
     assert.equal(running.status, 'running');
     assert.equal(running.pid, pid);
     assert.ok(running.uptimeMs >= 0);
+    assert.equal(running.guard?.active, true, '手动启动应开启守护');
+    assert.equal(running.guard?.attempts, 0);
 
     // 等子进程把启动日志写出来
     await new Promise((resolve) => setTimeout(resolve, 400));
@@ -236,6 +238,7 @@ test('启动 → 状态为运行中且进程真实存在 → 停止后进程消�
     const after = pick(await service.list(), 'life');
     assert.equal(after.status, 'stopped');
     assert.equal(after.pid, undefined);
+    assert.equal(after.guard?.active, false, '手动停止应关闭守护');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -1065,6 +1068,220 @@ test('非托管应用重启等价于接管：停止外部进程后由 dockyard �
     const app = pick(await service.list(), 'node:external-restart:dev');
     assert.equal(app.status, 'running');
     await service.stop('node:external-restart:dev');
+  } finally {
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});
+
+test('守护：崩溃后按退避重试，达到上限自动停止', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-guard-'));
+  try {
+    const script = join(dir, 'die.mjs');
+    await writeFile(script, 'process.exit(1);\n');
+    const project = {
+      id: 'project:/p',
+      name: 'p',
+      root: dir,
+      source: 'git',
+      container: null,
+      ecosystems: [
+        {
+          id: 'node-npm',
+          name: 'Node.js (npm)',
+          language: 'Node.js',
+          manager: 'npm',
+          apps: [
+            {
+              id: 'node:guard:dev',
+              name: 'guarded-app',
+              dir,
+              runner: 'node',
+              command: process.execPath,
+              args: [script],
+              reason: 'test',
+              projectId: 'project:/p',
+              projectName: 'p',
+              projectRoot: dir,
+              ecosystemId: 'node-npm',
+              ecosystemName: 'Node.js (npm)',
+              language: 'Node.js',
+              manager: 'npm',
+            },
+          ],
+        },
+      ],
+      diagnostics: [],
+    };
+    const service = new DockyardService({
+      dataDir: dir,
+      metricsIntervalMs: 0,
+      syncIntervalMs: 0,
+      scanImpl: async () => ({
+        projects: [/** @type {any} */ (project)],
+        diagnostics: [],
+        scannedDirs: 1,
+      }),
+    });
+    await service.init();
+    await service.addProject(/** @type {any} */ (project));
+    await service.setGuardPolicy({
+      enabled: true,
+      maxRetries: 2,
+      backoffBaseMs: 500,
+      backoffMaxMs: 500,
+      resetAfterMs: 60000,
+    });
+
+    const started = await service.start('node:guard:dev');
+    assert.equal(started.started, true);
+
+    let app = pick(await service.list(), 'node:guard:dev');
+    for (let index = 0; index < 80 && app.guard?.exhausted !== true; index += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      app = pick(await service.list(), 'node:guard:dev');
+    }
+    assert.equal(app.guard?.exhausted, true, '重试次数用尽后守护应停止');
+    assert.equal(app.guard?.active, false);
+    assert.equal(app.guard?.attempts, 2);
+    assert.equal(app.status, 'crashed');
+  } finally {
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});
+
+test('守护：关闭保活策略后不自动重试', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-guard-off-'));
+  try {
+    const script = join(dir, 'die.mjs');
+    await writeFile(script, 'process.exit(1);\n');
+    const project = {
+      id: 'project:/p',
+      name: 'p',
+      root: dir,
+      source: 'git',
+      container: null,
+      ecosystems: [
+        {
+          id: 'node-npm',
+          name: 'Node.js (npm)',
+          language: 'Node.js',
+          manager: 'npm',
+          apps: [
+            {
+              id: 'node:guard-off:dev',
+              name: 'unguarded-app',
+              dir,
+              runner: 'node',
+              command: process.execPath,
+              args: [script],
+              reason: 'test',
+              projectId: 'project:/p',
+              projectName: 'p',
+              projectRoot: dir,
+              ecosystemId: 'node-npm',
+              ecosystemName: 'Node.js (npm)',
+              language: 'Node.js',
+              manager: 'npm',
+            },
+          ],
+        },
+      ],
+      diagnostics: [],
+    };
+    const service = new DockyardService({
+      dataDir: dir,
+      metricsIntervalMs: 0,
+      syncIntervalMs: 0,
+      scanImpl: async () => ({
+        projects: [/** @type {any} */ (project)],
+        diagnostics: [],
+        scannedDirs: 1,
+      }),
+    });
+    await service.init();
+    await service.addProject(/** @type {any} */ (project));
+    await service.setGuardPolicy({ enabled: false });
+
+    await service.start('node:guard-off:dev');
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    const app = pick(await service.list(), 'node:guard-off:dev');
+    assert.equal(app.guard?.active, false);
+    assert.equal(app.guard?.attempts, 0);
+    assert.equal(app.status, 'crashed');
+  } finally {
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});
+
+test('parseState：guardPolicy 越界时回退默认，guard 字段被保留', () => {
+  const parsed = parseState({
+    version: STATE_VERSION,
+    guardPolicy: { enabled: false, maxRetries: 3, backoffBaseMs: 1000, backoffMaxMs: 9000 },
+    applications: {
+      a: {
+        dir: '/p',
+        command: 'node',
+        status: 'crashed',
+        logFile: '',
+        guard: { active: true, attempts: 2, exhausted: false, reason: 'test' },
+      },
+    },
+  });
+  assert.equal(parsed.state.guardPolicy.enabled, false);
+  assert.equal(parsed.state.guardPolicy.maxRetries, 3);
+  assert.equal(parsed.state.applications.a?.guard?.active, true);
+  assert.equal(parsed.state.applications.a?.guard?.attempts, 2);
+
+  const bad = parseState({
+    version: STATE_VERSION,
+    guardPolicy: { maxRetries: 999, backoffBaseMs: 1 },
+    applications: {},
+  });
+  assert.equal(bad.state.guardPolicy.maxRetries, 5);
+  assert.ok(bad.problems.some((problem) => problem.includes('maxRetries')));
+});
+
+test('加载状态：宿主重启后暂停守护，绝不自动启动', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-guard-load-'));
+  try {
+    const file = join(dir, 'state.json');
+    await writeFile(
+      file,
+      JSON.stringify({
+        version: STATE_VERSION,
+        scanRoots: [],
+        applications: {
+          a: {
+            id: 'a',
+            name: 'a',
+            dir: dir,
+            runner: 'node',
+            command: process.execPath,
+            args: [],
+            reason: 'test',
+            status: 'running',
+            logFile: join(dir, 'a.log'),
+            addedAt: Date.now(),
+            guard: { active: true, attempts: 3, reason: 'guarded before restart' },
+          },
+        },
+        preferences: { statusBar: true },
+        guardPolicy: {
+          enabled: true,
+          maxRetries: 5,
+          backoffBaseMs: 2000,
+          backoffMaxMs: 60000,
+          resetAfterMs: 60000,
+        },
+      }),
+    );
+    const store = new StateStore(file);
+    await store.load();
+    const record = store.get('a');
+    assert.equal(record?.status, 'unknown');
+    assert.equal(record?.guard?.active, false);
+    assert.equal(record?.guard?.nextAttemptAt, undefined);
+    assert.match(record?.guard?.reason ?? '', /宿主重启/);
   } finally {
     await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }

@@ -47,6 +47,14 @@ window.__ModuleLoader__.load({
      * 每次打开页面都先画出一条 bar、等第一次轮询回来再把它去掉。
      */
     const STATUS_BAR_CACHE_KEY = 'dockyard:status-bar-visible';
+    /** 与 Host 默认值保持一致的客户端兜底。 */
+    const DEFAULT_GUARD_POLICY = {
+      enabled: true,
+      maxRetries: 5,
+      backoffBaseMs: 2000,
+      backoffMaxMs: 60000,
+      resetAfterMs: 60000,
+    };
 
     /** 状态到文案 key 的映射。未知状态刻意显示"未知"，而不是猜一个。 */
     const STATUS_KEY = {
@@ -281,6 +289,26 @@ window.__ModuleLoader__.load({
         externalPorts: '端口 {ports}',
         takeoverApp: '接管',
         externalRestartHint: '停止外部进程，再由 dockyard 重启（即接管）。',
+        guardSettings: '保活设置',
+        guardSettingsTitle: '保活与重试策略',
+        guardSettingsHint:
+          '只对通过本插件手动启动或接管的应用生效；手动停止或重试次数用尽后自动关闭。',
+        guardEnabled: '启用自动重试',
+        guardMaxRetries: '重试次数上限',
+        guardBackoffBase: '退避基数（秒）',
+        guardBackoffMax: '单次退避上限（秒）',
+        guardResetAfter: '稳定运行重置（秒）',
+        guardSave: '保存',
+        guardSaving: '保存中…',
+        guardResetDefaults: '恢复默认',
+        guardCancel: '取消',
+        guardSaveDone: '保活策略已保存。',
+        guardInvalid: '请填写有效的数字，且退避上限不能小于退避基数。',
+        guardBadgeActive: '守护中',
+        guardBadgeWaiting: '等待重试',
+        guardBadgeExhausted: '守护已停止',
+        guardNextIn: '{seconds} 秒后（{attempts}/{max}）',
+        guardAttempts: '重试 {attempts}/{max}',
         takeoverAll: '一键接管',
         takeoverAllCount: '一键接管（{count}）',
         filterUnmanaged: '非托管',
@@ -572,6 +600,26 @@ window.__ModuleLoader__.load({
         externalPorts: 'port {ports}',
         takeoverApp: 'Take over',
         externalRestartHint: 'Stop the external process and restart it under dockyard (takeover).',
+        guardSettings: 'Keep-alive settings',
+        guardSettingsTitle: 'Keep-alive & retry policy',
+        guardSettingsHint:
+          'Applies only to apps manually started or taken over here. It stops on manual stop or when retries are exhausted.',
+        guardEnabled: 'Enable automatic retry',
+        guardMaxRetries: 'Retry limit',
+        guardBackoffBase: 'Backoff base (seconds)',
+        guardBackoffMax: 'Backoff ceiling (seconds)',
+        guardResetAfter: 'Reset after stable run (seconds)',
+        guardSave: 'Save',
+        guardSaving: 'Saving…',
+        guardResetDefaults: 'Restore defaults',
+        guardCancel: 'Cancel',
+        guardSaveDone: 'Keep-alive policy saved.',
+        guardInvalid: 'Enter valid numbers; the ceiling cannot be below the base.',
+        guardBadgeActive: 'Guarded',
+        guardBadgeWaiting: 'Retry scheduled',
+        guardBadgeExhausted: 'Guard stopped',
+        guardNextIn: 'in {seconds}s ({attempts}/{max})',
+        guardAttempts: 'Retry {attempts}/{max}',
         takeoverAll: 'Take over all',
         takeoverAllCount: 'Take over all ({count})',
         filterUnmanaged: 'Unmanaged',
@@ -733,7 +781,7 @@ window.__ModuleLoader__.load({
     /**
      * 读一次状态快照。
      * @param {AbortSignal} [signal]
-     * @returns {Promise<{ generatedAt: number, applications: any[], externalApps: any[], externalUnmatched: number, externalError: string, projects: any[], system: any, resourceHistory: { at: number, cpuPercent: number, rssBytes: number }[], preferences: { statusBar: boolean }, warnings: string[], scanRoots: string[] }>}
+     * @returns {Promise<{ generatedAt: number, applications: any[], externalApps: any[], externalUnmatched: number, externalError: string, guardPolicy: any, projects: any[], system: any, resourceHistory: { at: number, cpuPercent: number, rssBytes: number }[], preferences: { statusBar: boolean }, warnings: string[], scanRoots: string[] }>}
      */
     async function fetchStatus(signal) {
       const response = await fetch(STATUS_ROUTE, {
@@ -753,6 +801,21 @@ window.__ModuleLoader__.load({
         externalApps: Array.isArray(body.externalApps) ? body.externalApps : [],
         externalUnmatched: Number(body.externalUnmatched) || 0,
         externalError: typeof body.externalError === 'string' ? body.externalError : '',
+        guardPolicy: {
+          enabled: body.guardPolicy?.enabled !== false,
+          maxRetries: Number.isInteger(body.guardPolicy?.maxRetries)
+            ? Number(body.guardPolicy.maxRetries)
+            : DEFAULT_GUARD_POLICY.maxRetries,
+          backoffBaseMs: Number.isInteger(body.guardPolicy?.backoffBaseMs)
+            ? Number(body.guardPolicy.backoffBaseMs)
+            : DEFAULT_GUARD_POLICY.backoffBaseMs,
+          backoffMaxMs: Number.isInteger(body.guardPolicy?.backoffMaxMs)
+            ? Number(body.guardPolicy.backoffMaxMs)
+            : DEFAULT_GUARD_POLICY.backoffMaxMs,
+          resetAfterMs: Number.isInteger(body.guardPolicy?.resetAfterMs)
+            ? Number(body.guardPolicy.resetAfterMs)
+            : DEFAULT_GUARD_POLICY.resetAfterMs,
+        },
         projects: Array.isArray(body.projects) ? body.projects : [],
         system: body.system && typeof body.system === 'object' ? body.system : null,
         // 旧 Host 没有趋势聚合字段时给空数组，趋势卡显示"暂无采样"而不是伪造曲线。
@@ -5034,6 +5097,8 @@ window.__ModuleLoader__.load({
         onTakeoverApp,
         externalUnmatched,
         externalError,
+        guardPolicy,
+        onOpenGuardSettings,
       } = props;
       const apps = status.applications;
       /** 托管应用 + 能匹配回应用的外部进程，合成同一条应用列表。 */
@@ -5129,6 +5194,46 @@ window.__ModuleLoader__.load({
       };
 
       /**
+       * 守护徽标：只展示"守护中 / 等待重试 / 已停止"，细节放 title。
+       * @param {any} app
+       */
+      const renderGuardBadge = (app) => {
+        const guard = app.guard;
+        if (!guard) return null;
+        const max = guardPolicy?.maxRetries ?? DEFAULT_GUARD_POLICY.maxRetries;
+        if (guard.active && typeof guard.nextAttemptAt === 'number') {
+          const seconds = Math.max(0, Math.ceil((guard.nextAttemptAt - Date.now()) / 1000));
+          return h(
+            'span',
+            { className: 'dy-badge dy-badge-warn', title: guard.reason || '' },
+            `${t('guardBadgeWaiting')} · ${format(t('guardNextIn'), {
+              seconds,
+              attempts: Math.min((guard.attempts ?? 0) + 1, max),
+              max,
+            })}`,
+          );
+        }
+        if (guard.active) {
+          const attempts = guard.attempts ?? 0;
+          return h(
+            'span',
+            { className: 'dy-badge dy-badge-ok', title: guard.reason || '' },
+            attempts > 0
+              ? `${t('guardBadgeActive')} · ${format(t('guardAttempts'), { attempts, max })}`
+              : t('guardBadgeActive'),
+          );
+        }
+        if (guard.exhausted) {
+          return h(
+            'span',
+            { className: 'dy-badge dy-badge-danger', title: guard.reason || '' },
+            t('guardBadgeExhausted'),
+          );
+        }
+        return null;
+      };
+
+      /**
        * @param {any} app
        */
       function renderRow(app) {
@@ -5157,6 +5262,7 @@ window.__ModuleLoader__.load({
                 managed ? t('managedBadge') : t('unmanagedBadge'),
               ),
               ...renderAppTags(app),
+              managed ? renderGuardBadge(app) : null,
               app.missing
                 ? h('span', { className: 'dy-badge dy-badge-danger' }, t('missingBadge'))
                 : null,
@@ -5468,6 +5574,15 @@ window.__ModuleLoader__.load({
                 format(t('takeoverAllCount'), { count: externalTotal }),
               )
             : null,
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'dy-btn',
+              onClick: onOpenGuardSettings,
+            },
+            t('guardSettings'),
+          ),
           h(
             'button',
             {
@@ -6315,7 +6430,156 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 全局页。整页由四个内部 tab 组成：概览、服务、发现、日志。
+     * 保活设置弹窗。只改策略，不启动/停止任何应用。
+     * @param {{ t: any, draft: any, setDraft: any, onSave: any, onClose: any, busy: boolean }} props
+     */
+    function GuardSettingsModal(props) {
+      const { t, draft, setDraft, onSave, onClose, busy } = props;
+      React.useEffect(() => {
+        const onKeyDown = (event) => {
+          if (event.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+      }, [onClose]);
+
+      const toNumber = (value) => Number(value);
+      const maxRetries = toNumber(draft.maxRetries);
+      const backoffBaseSec = toNumber(draft.backoffBaseSec);
+      const backoffMaxSec = toNumber(draft.backoffMaxSec);
+      const resetAfterSec = toNumber(draft.resetAfterSec);
+      const valid =
+        Number.isInteger(maxRetries) &&
+        maxRetries >= 0 &&
+        maxRetries <= 20 &&
+        Number.isFinite(backoffBaseSec) &&
+        backoffBaseSec >= 0.5 &&
+        backoffBaseSec <= 600 &&
+        Number.isFinite(backoffMaxSec) &&
+        backoffMaxSec >= backoffBaseSec &&
+        backoffMaxSec <= 3600 &&
+        Number.isFinite(resetAfterSec) &&
+        resetAfterSec >= 1 &&
+        resetAfterSec <= 86400;
+
+      const field = (key, label, value, min, max, step = 1) =>
+        h(
+          'label',
+          { className: 'dy-field' },
+          h('span', { className: 'dy-label' }, label),
+          h('input', {
+            className: 'dy-input',
+            type: 'number',
+            min,
+            max,
+            step,
+            value,
+            onChange: (event) =>
+              setDraft((previous) => ({ ...previous, [key]: event.target.value })),
+          }),
+        );
+
+      return h(
+        'div',
+        {
+          className: 'dy-modal-backdrop',
+          onMouseDown: (event) => {
+            if (event.target === event.currentTarget) onClose();
+          },
+        },
+        h(
+          'div',
+          {
+            className: 'dy-modal',
+            style: { width: 'min(560px, 100%)' },
+            role: 'dialog',
+            'aria-modal': 'true',
+            'aria-label': t('guardSettingsTitle'),
+          },
+          h(
+            'div',
+            { className: 'dy-modal-head' },
+            h(
+              'div',
+              { className: 'dy-modal-title-block' },
+              h('span', { className: 'dy-modal-title' }, t('guardSettingsTitle')),
+            ),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dy-btn',
+                onClick: onClose,
+                'aria-label': t('dismiss'),
+              },
+              t('dismiss'),
+            ),
+          ),
+          h('p', { className: 'dy-hint', style: { margin: 0 } }, t('guardSettingsHint')),
+          h(
+            'label',
+            { className: 'dy-check-label' },
+            h('input', {
+              type: 'checkbox',
+              className: 'dy-check',
+              checked: draft.enabled,
+              onChange: (event) =>
+                setDraft((previous) => ({ ...previous, enabled: event.target.checked })),
+            }),
+            t('guardEnabled'),
+          ),
+          h(
+            'div',
+            { className: 'dy-row', style: { alignItems: 'flex-end' } },
+            field('maxRetries', t('guardMaxRetries'), draft.maxRetries, 0, 20),
+            field('backoffBaseSec', t('guardBackoffBase'), draft.backoffBaseSec, 0.5, 600, 0.5),
+            field('backoffMaxSec', t('guardBackoffMax'), draft.backoffMaxSec, 0.5, 3600, 0.5),
+            field('resetAfterSec', t('guardResetAfter'), draft.resetAfterSec, 1, 86400),
+          ),
+          valid ? null : h('p', { className: 'dy-notice dy-notice-error' }, t('guardInvalid')),
+          h(
+            'div',
+            { className: 'dy-row' },
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dy-btn dy-btn-ghost',
+                disabled: busy,
+                onClick: () =>
+                  setDraft({
+                    enabled: DEFAULT_GUARD_POLICY.enabled,
+                    maxRetries: String(DEFAULT_GUARD_POLICY.maxRetries),
+                    backoffBaseSec: String(DEFAULT_GUARD_POLICY.backoffBaseMs / 1000),
+                    backoffMaxSec: String(DEFAULT_GUARD_POLICY.backoffMaxMs / 1000),
+                    resetAfterSec: String(DEFAULT_GUARD_POLICY.resetAfterMs / 1000),
+                  }),
+              },
+              t('guardResetDefaults'),
+            ),
+            h('span', { className: 'dy-spacer' }),
+            h(
+              'button',
+              { type: 'button', className: 'dy-btn', disabled: busy, onClick: onClose },
+              t('guardCancel'),
+            ),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dy-btn dy-btn-primary',
+                disabled: busy || !valid,
+                onClick: onSave,
+              },
+              busy ? t('guardSaving') : t('guardSave'),
+            ),
+          ),
+        ),
+      );
+    }
+
+    /**
+     * 全局页。整页由五个内部 tab 组成：概览·指标、概览·健康、服务、发现、日志。
      * @param {{ t?: (key: string) => string }} props
      */
     function DockyardPage(props) {
@@ -6330,6 +6594,7 @@ window.__ModuleLoader__.load({
         externalApps: [],
         externalUnmatched: 0,
         externalError: '',
+        guardPolicy: { ...DEFAULT_GUARD_POLICY },
         projects: [],
         system: null,
         resourceHistory: [],
@@ -6342,6 +6607,15 @@ window.__ModuleLoader__.load({
       });
       const [notice, setNotice] = React.useState(null);
       const [busy, setBusy] = React.useState('');
+      const [guardOpen, setGuardOpen] = React.useState(false);
+      const [guardSaving, setGuardSaving] = React.useState(false);
+      const [guardDraft, setGuardDraft] = React.useState({
+        enabled: DEFAULT_GUARD_POLICY.enabled,
+        maxRetries: String(DEFAULT_GUARD_POLICY.maxRetries),
+        backoffBaseSec: String(DEFAULT_GUARD_POLICY.backoffBaseMs / 1000),
+        backoffMaxSec: String(DEFAULT_GUARD_POLICY.backoffMaxMs / 1000),
+        resetAfterSec: String(DEFAULT_GUARD_POLICY.resetAfterMs / 1000),
+      });
       const [confirmRemove, setConfirmRemove] = React.useState('');
       const [confirmRemoveProject, setConfirmRemoveProject] = React.useState('');
       const [manualRoots, setManualRoots] = React.useState('');
@@ -6536,6 +6810,57 @@ window.__ModuleLoader__.load({
           setBusy('');
         }
       }, [loadStatus]);
+
+      const openGuardSettings = React.useCallback(() => {
+        const policy = status.guardPolicy ?? DEFAULT_GUARD_POLICY;
+        setGuardDraft({
+          enabled: policy.enabled !== false,
+          maxRetries: String(policy.maxRetries),
+          backoffBaseSec: String(policy.backoffBaseMs / 1000),
+          backoffMaxSec: String(policy.backoffMaxMs / 1000),
+          resetAfterSec: String(policy.resetAfterMs / 1000),
+        });
+        setGuardOpen(true);
+      }, [status.guardPolicy]);
+
+      const saveGuardSettings = React.useCallback(async () => {
+        const maxRetries = Number(guardDraft.maxRetries);
+        const backoffBaseMs = Math.round(Number(guardDraft.backoffBaseSec) * 1000);
+        const backoffMaxMs = Math.round(Number(guardDraft.backoffMaxSec) * 1000);
+        const resetAfterMs = Math.round(Number(guardDraft.resetAfterSec) * 1000);
+        if (
+          !Number.isInteger(maxRetries) ||
+          maxRetries < 0 ||
+          maxRetries > 20 ||
+          !Number.isFinite(backoffBaseMs) ||
+          !Number.isFinite(backoffMaxMs) ||
+          backoffMaxMs < backoffBaseMs ||
+          !Number.isFinite(resetAfterMs)
+        ) {
+          setNotice({ kind: 'error', text: t('guardInvalid') });
+          return;
+        }
+        setGuardSaving(true);
+        setNotice(null);
+        try {
+          await postAction('set-guard-policy', {
+            policy: {
+              enabled: guardDraft.enabled === true,
+              maxRetries,
+              backoffBaseMs,
+              backoffMaxMs,
+              resetAfterMs,
+            },
+          });
+          await loadStatus();
+          setGuardOpen(false);
+          setNotice({ kind: 'info', text: t('guardSaveDone') });
+        } catch (error) {
+          setNotice({ kind: 'error', text: messageOf(error) });
+        } finally {
+          setGuardSaving(false);
+        }
+      }, [guardDraft, loadStatus, t]);
 
       const removeProject = React.useCallback(
         async (projectId) => {
@@ -6800,6 +7125,8 @@ window.__ModuleLoader__.load({
           onTakeoverApp: (id) => act('takeover-app', { id }, `takeover:${id}`),
           externalUnmatched: status.externalUnmatched,
           externalError: status.externalError,
+          guardPolicy: status.guardPolicy,
+          onOpenGuardSettings: openGuardSettings,
           onLogs: openLogModal,
           onDiscover: () => setTab('discover'),
           query,
@@ -6993,6 +7320,16 @@ window.__ModuleLoader__.load({
               refreshLogs: () => setLogNonce((value) => value + 1),
               logRef,
               onClose: closeLogModal,
+            })
+          : null,
+        guardOpen
+          ? h(GuardSettingsModal, {
+              t,
+              draft: guardDraft,
+              setDraft: setGuardDraft,
+              onSave: saveGuardSettings,
+              onClose: () => setGuardOpen(false),
+              busy: guardSaving,
             })
           : null,
       );
