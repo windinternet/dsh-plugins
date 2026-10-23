@@ -109,7 +109,13 @@ test('纯函数：renderLogLines 标注输出来源', () => {
 });
 
 test('parseState：坏输入被替换为安全默认并记录原因', () => {
-  assert.deepEqual(parseState(null).state, emptyState());
+  const parsedNull = parseState(null).state;
+  const empty = emptyState();
+  assert.deepEqual(
+    { ...parsedNull, updatedAt: 0 },
+    { ...empty, updatedAt: 0 },
+    '除时间戳外应完全等于空状态',
+  );
   assert.match(parseState(null).problems.join('\n'), /顶层不是对象/);
 
   const bad = parseState({ version: STATE_VERSION, scanRoots: 'nope', applications: [] });
@@ -223,6 +229,14 @@ test('启动 → 状态为运行中且进程真实存在 → 停止后进程消�
     assert.ok(running.uptimeMs >= 0);
     assert.equal(running.guard?.active, true, '手动启动应开启守护');
     assert.equal(running.guard?.attempts, 0);
+
+    // 启动后的应用树不能被误判成外部进程，否则界面会在托管/非托管之间跳。
+    const externalAfterStart = await service.listExternalApps({ fresh: true });
+    assert.equal(
+      externalAfterStart.apps.some((app) => app.id === 'life'),
+      false,
+      'dockyard 自己启动的应用不应出现在非托管列表里',
+    );
 
     // 等子进程把启动日志写出来
     await new Promise((resolve) => setTimeout(resolve, 400));

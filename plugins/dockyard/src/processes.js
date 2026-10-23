@@ -198,7 +198,10 @@ export async function listExternalProcesses(options) {
   const byPid = new Map(parsed.map((item) => [item.pid, item]));
   const cwdByPid = parseLsofCwd(cwdText);
   const portsByPid = parseLsofPorts(portsText);
-  const managed = new Set(options.managedPids ?? []);
+  const dockyardPids = new Set(
+    (options.managedPids ?? []).filter((pid) => Number.isInteger(pid) && pid > 1),
+  );
+  const managed = new Set(dockyardPids);
   // 把当前进程及其祖先链排除：DSH / 插件宿主可能正好以某个项目目录为 cwd，
   // 不能把“自己”当成可接管的外部服务。
   let cursor = process.pid;
@@ -206,11 +209,38 @@ export async function listExternalProcesses(options) {
     managed.add(cursor);
     cursor = byPid.get(cursor)?.ppid ?? 0;
   }
+
+  /**
+   * 判断进程是否属于 dockyard 自己启动的应用树。
+   *
+   * 只比较 managedPids 是不行的：启动器是 detached 的进程组首进程，真正的应用是它的
+   * 子进程；如果只排除启动器 pid，应用进程就会被当成“外部进程”，同一个应用在
+   * 托管/非托管之间来回跳。这里同时按进程组和祖先链排除整棵树。
+   * @param {{ pid: number, ppid: number, pgid: number }} item
+   * @returns {boolean}
+   */
+  const belongsToDockyard = (item) => {
+    if (dockyardPids.has(item.pid) || dockyardPids.has(item.pgid)) return true;
+    let parent = item.ppid;
+    for (let depth = 0; depth < 32 && parent > 1; depth += 1) {
+      if (dockyardPids.has(parent)) return true;
+      parent = byPid.get(parent)?.ppid ?? 0;
+    }
+    return false;
+  };
+
   /** @type {ExternalProcess[]} */
   const processes = [];
 
   for (const item of parsed) {
-    if (item.pid <= 1 || item.pid === process.pid || managed.has(item.pid)) continue;
+    if (
+      item.pid <= 1 ||
+      item.pid === process.pid ||
+      managed.has(item.pid) ||
+      belongsToDockyard(item)
+    ) {
+      continue;
+    }
     const cwd = cwdByPid.get(item.pid);
     if (!cwd) continue;
     const root = matchRoot(cwd, options.roots);
