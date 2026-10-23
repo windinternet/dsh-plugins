@@ -1331,9 +1331,18 @@ window.__ModuleLoader__.load({
   background: var(--dsw-alias-border-l1, transparent);
 }
 .dy-bar-chunk { display: inline-flex; align-items: center; min-width: 0; flex: none; }
+/* 分隔线放在可伸缩的间隙里：剩余宽度均匀分给各块之间，而不是堆成一个大洞。 */
+.dy-gap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 5px;
+  max-width: 34px;
+}
 .dy-bar-health { gap: 5px; }
 .dy-bar-scale { gap: 10px; }
-.dy-bar-res { gap: 10px; flex: 1 1 auto; justify-content: space-between; }
+.dy-bar-res { gap: 10px; }
 .dy-bar-eco { gap: 5px; flex: 0 1 auto; overflow: hidden; }
 .dy-bar-spacer { flex: 1 1 auto; min-width: 4px; }
 .dy-chip {
@@ -4756,7 +4765,7 @@ window.__ModuleLoader__.load({
             'data-tone': tone,
           },
           brand,
-          h('span', { className: 'dy-bar-sep' }),
+          h('span', { className: 'dy-gap' }, h('span', { className: 'dy-bar-sep' })),
           h(
             'span',
             { className: 'dy-bar-chunk dy-bar-health' },
@@ -4793,13 +4802,13 @@ window.__ModuleLoader__.load({
               : null,
             errorPhase ? chip('error', t('dockUnavailable'), state.error) : null,
           ),
-          h('span', { className: 'dy-bar-sep' }),
+          h('span', { className: 'dy-gap' }, h('span', { className: 'dy-bar-sep' })),
           h(
             'span',
             { className: 'dy-bar-chunk dy-bar-scale' },
             metric(projectCount, t('dockProjects')),
           ),
-          h('span', { className: 'dy-bar-sep' }),
+          h('span', { className: 'dy-gap' }, h('span', { className: 'dy-bar-sep' })),
           h(
             'span',
             { className: 'dy-bar-chunk dy-bar-res' },
@@ -4825,7 +4834,7 @@ window.__ModuleLoader__.load({
               ),
             ),
           ),
-          h('span', { className: 'dy-bar-sep' }),
+          h('span', { className: 'dy-gap' }, h('span', { className: 'dy-bar-sep' })),
           h(
             'span',
             { className: 'dy-bar-chunk dy-bar-eco', title: ecoTitle },
