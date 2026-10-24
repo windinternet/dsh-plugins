@@ -789,16 +789,39 @@ window.__ModuleLoader__.load({
      * @param {AbortSignal} [signal]
      * @returns {Promise<{ generatedAt: number, applications: any[], externalApps: any[], externalUnmatched: number, externalError: string, guardPolicy: any, projects: any[], system: any, resourceHistory: { at: number, cpuPercent: number, rssBytes: number }[], preferences: { statusBar: boolean }, warnings: string[], scanRoots: string[] }>}
      */
+    /**
+     * 首次安装插件时，Host 的 webServer 路由可能比 Client 面板晚就绪，
+     * 这时对 /plugin/dockyard/* 的请求会拿到 404/405。对这两个状态做短暂重试，
+     * 避免把"插件还没挂载完"误报成扫描失败；405 不会被服务端执行，重试是安全的。
+     * @param {string} url
+     * @param {RequestInit} options
+     * @param {AbortSignal} [signal]
+     * @returns {Promise<Response>}
+     */
+    async function requestRoute(url, options = {}, signal) {
+      const retryable = new Set([404, 405]);
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        const response = await fetch(url, { ...options, signal });
+        if (!retryable.has(response.status) || attempt === 9) return response;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      throw new Error('请求路由不可用。');
+    }
+
     async function fetchStatus(signal) {
-      const response = await fetch(STATUS_ROUTE, {
+      const response = await requestRoute(
+        STATUS_ROUTE,
+        { headers: { accept: 'application/json' } },
         signal,
-        headers: { accept: 'application/json' },
-      });
+      );
       const body = await response.json().catch(() => null);
       if (!response.ok || !body || body.ok !== true) {
         throw new Error(
           (body && typeof body.error === 'string' && body.error) ||
-            `状态接口返回 ${response.status}`,
+            (response.status === 405
+              ? '服务坞 Host 路由尚未就绪（插件刚安装时可能出现），请稍等或重启 DSH 后重试。'
+              : `状态接口返回 ${response.status}`),
         );
       }
       return {
@@ -864,10 +887,11 @@ window.__ModuleLoader__.load({
      */
     async function fetchLogs(id, lines, signal) {
       const query = new URLSearchParams({ id, lines: String(lines) });
-      const response = await fetch(`${LOGS_ROUTE}?${query}`, {
+      const response = await requestRoute(
+        `${LOGS_ROUTE}?${query}`,
+        { headers: { accept: 'application/json' } },
         signal,
-        headers: { accept: 'application/json' },
-      });
+      );
       const body = await response.json().catch(() => null);
       if (!response.ok || !body || body.ok !== true) {
         throw new Error(
@@ -888,7 +912,7 @@ window.__ModuleLoader__.load({
      * @returns {Promise<any>}
      */
     async function postAction(action, payload) {
-      const response = await fetch(ACTION_ROUTE, {
+      const response = await requestRoute(ACTION_ROUTE, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -900,7 +924,9 @@ window.__ModuleLoader__.load({
       if (!response.ok || !body || body.ok !== true) {
         throw new Error(
           (body && typeof body.error === 'string' && body.error) ||
-            `操作接口返回 ${response.status}`,
+            (response.status === 405
+              ? '服务坞 Host 路由尚未就绪（插件刚安装时可能出现），请稍等或重启 DSH 后重试。'
+              : `操作接口返回 ${response.status}`),
         );
       }
       return body.result;

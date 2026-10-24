@@ -105,6 +105,10 @@ dsh plugin --profile desktop add "file:/绝对路径/dsh-plugins/plugins/dockyar
 运行。启动器把输出写入日志文件，按 `OUT` / `ERR` / `SYS` 标记来源并按大小轮转；
 插件卸载默认不杀应用，保留运行态与启动器 pid，下次启动时重新接管。
 
+### 首次安装的路由就绪
+
+Client 面板可能比 Host 的 `/plugin/dockyard/*` 路由更早就绪。面板对这两个路由的 404/405 会做约 5 秒的短重试；超过窗口仍失败时提示重启 DSH，而不是把 405 当成扫描失败。
+
 ### 快捷访问
 
 运行中且监听了端口的应用会显示「访问」按钮，默认打开 `http://localhost:<端口>`；多端口可下拉
