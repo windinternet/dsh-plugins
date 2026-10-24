@@ -554,6 +554,24 @@ test('action：set-guard-policy 校验并保存策略', async () => {
   assert.equal(bad.statusCode, 400);
 });
 
+test('action：ping 用于首次安装的路由就绪探测', async () => {
+  const service = makeService();
+  const handlers = createDockyardHandlers(/** @type {any} */ (service));
+  const res = makeRes();
+  await handlers.action(
+    makeReq({
+      method: 'POST',
+      headers: ACTION_HEADERS,
+      body: { action: 'ping' },
+    }),
+    /** @type {any} */ (res),
+  );
+  assert.equal(res.statusCode, 200);
+  const body = JSON.parse(res.body);
+  assert.equal(body.ok, true);
+  assert.equal(body.result.pong, true);
+});
+
 test('action：set-app-port 校验端口并保存', async () => {
   const service = makeService();
   const handlers = createDockyardHandlers(/** @type {any} */ (service));

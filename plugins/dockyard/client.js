@@ -289,6 +289,8 @@ window.__ModuleLoader__.load({
         externalPorts: '端口 {ports}',
         takeoverApp: '接管',
         externalRestartHint: '停止外部进程，再由 dockyard 重启（即接管）。',
+        hostNotReady:
+          '服务坞 Host 尚未就绪（首次安装时常见）。请稍等几秒，或重启 DSH 后再扫描；这次不会打开目录选择器。',
         openApp: '访问',
         openAppHint: '在浏览器打开 {url}',
         portSelect: '访问端口',
@@ -603,6 +605,8 @@ window.__ModuleLoader__.load({
         externalPorts: 'port {ports}',
         takeoverApp: 'Take over',
         externalRestartHint: 'Stop the external process and restart it under dockyard (takeover).',
+        hostNotReady:
+          'The Dockyard Host is not ready yet (common right after installation). Wait a few seconds or restart DSH, then scan again; the folder picker was not opened.',
         openApp: 'Open',
         openAppHint: 'Open {url} in the browser',
         portSelect: 'Port',
@@ -7053,6 +7057,16 @@ window.__ModuleLoader__.load({
         [loadStatus, t],
       );
 
+      const ensureActionReady = React.useCallback(async () => {
+        try {
+          await postAction('ping', {});
+          return true;
+        } catch {
+          setNotice({ kind: 'error', text: t('hostNotReady') });
+          return false;
+        }
+      }, [t]);
+
       const onScan = React.useCallback(async () => {
         if (typeof pickDirectory !== 'function') {
           setNotice({ kind: 'error', text: t('discoverPickUnsupported') });
@@ -7062,6 +7076,7 @@ window.__ModuleLoader__.load({
         setPicking(true);
         setNotice(null);
         try {
+          if (!(await ensureActionReady())) return;
           const path = await pickDirectory();
           // null = 用户取消；undefined = 当前环境没有可用选择器。
           if (path === null || path === undefined) {
@@ -7080,9 +7095,10 @@ window.__ModuleLoader__.load({
         } finally {
           setPicking(false);
         }
-      }, [pickDirectory, t, scanFromRoots]);
+      }, [ensureActionReady, pickDirectory, t, scanFromRoots]);
 
       const onFallbackScan = React.useCallback(async () => {
+        if (!(await ensureActionReady())) return;
         const roots = manualRoots
           .split('\n')
           .map((line) => line.trim())
@@ -7092,7 +7108,7 @@ window.__ModuleLoader__.load({
           return;
         }
         await scanFromRoots(roots);
-      }, [manualRoots, t, scanFromRoots]);
+      }, [ensureActionReady, manualRoots, t, scanFromRoots]);
 
       const onToggleSelected = React.useCallback((projectId, checked) => {
         setSelectedProjects((previous) => {

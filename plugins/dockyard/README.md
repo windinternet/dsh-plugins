@@ -107,7 +107,12 @@ dsh plugin --profile desktop add "file:/绝对路径/dsh-plugins/plugins/dockyar
 
 ### 首次安装的路由就绪
 
-Client 面板可能比 Host 的 `/plugin/dockyard/*` 路由更早就绪。面板对这两个路由的 404/405 会做约 5 秒的短重试；超过窗口仍失败时提示重启 DSH，而不是把 405 当成扫描失败。
+Client 面板可能比 Host 的 `/plugin/dockyard/*` 路由更早就绪。扫描按钮在**打开目录选择器之前**先 POST 一个无副作用的 `ping` 动作，并对 404/405 做约 5 秒短重试：
+
+- 路由就绪才打开 picker，然后正常扫描；
+- 未就绪则不打开 picker，直接提示稍等或重启 DSH。
+
+如果 Host 半侧在首次安装后根本没有被 DSH 加载，重试无法凭空创建路由；这时只能重启 DSH 让 Host 插件生效。
 
 ### 快捷访问
 

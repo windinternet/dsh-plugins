@@ -297,6 +297,9 @@ export function normalizeLogLines(value) {
 async function dispatchAction(service, body) {
   const action = typeof body.action === 'string' ? body.action : '';
   switch (action) {
+    case 'ping':
+      // 供 Client 在打开目录选择器前确认 Host 动作路由已就绪；无副作用。
+      return { pong: true, at: Date.now() };
     case 'start':
       return service.start(requireString(body.id, 'id'));
     case 'stop':
