@@ -330,6 +330,7 @@ export class DockyardService {
       }
       reattached += 1;
       changed = true;
+      await this.#writeRuntimeRecord(record, pid);
       await this.#appendSystemLog(record.logFile, record.statusReason);
     }
 
