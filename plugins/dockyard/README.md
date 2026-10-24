@@ -204,13 +204,28 @@ Session，内部用五个 tab 区分功能：
 
 ### 宿主重启后如何保持托管
 
-状态文件里保存启动器 pid。宿主重启后 `init()` 会检查该 pid：
+启动成功时除了写 `state.json`，还会写一份 `runtime/<hash>.json`：
 
-- 命令行仍含 `app-launcher.mjs` 且进程组号等于 pid：重新接管，状态保持 running；
+```json
+{
+  "appId": "...",
+  "pid": 123,
+  "logFile": "...",
+  "processCommand": "...",
+  "executable": "...",
+  "processStartedAt": "..."
+}
+```
+
+宿主重启后 `init()` 先读 runtime 记录，再退回 `state.pid`，并用 pid 的启动时间/命令行
+核对确实是同一个进程：
+
+- 身份匹配或命令行仍是 `app-launcher.mjs` 且进程组等于 pid：重新接管，状态保持 running；
 - 进程已退出：降级为 crashed，并暂停守护，不自动启动；
-- 进程存在但不是本插件启动器：降级为 unknown，不冒认。
+- pid 已被复用、身份不符：降级为 unknown，不冒认。
 
-这样既不会谎报，也不会把仍在运行的托管应用误判成非托管。
+日志始终从 `logFile` 读；启动器把 stdout/stderr 定向到该文件，DSH 重启不会关闭它。
+这样即使 `state.json` 的 pid 被旧版本清掉，只要 runtime 文件还在、进程还活着，就能接回。
 
 ### 进程为什么归插件所有
 

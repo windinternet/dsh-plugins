@@ -8,10 +8,20 @@
  * 而不是猜一个看起来更好的值。用户看到一个诚实的 unknown，比看到一个假的运行中要好。
  */
 
-import { appendFile, mkdir, rename, stat } from 'node:fs/promises';
+import {
+  appendFile,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  stat,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 import { cpus, freemem, loadavg, totalmem, uptime } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import { flattenApps, scanProjects } from './project-scanner.js';
 import { matchExternalApps, collectStopProcesses } from './external-apps.js';
 import {
@@ -91,6 +101,7 @@ export class DockyardService {
   }) {
     this.dataDir = dataDir;
     this.logDir = join(dataDir, 'logs');
+    this.runtimeDir = join(dataDir, 'runtime');
     this.onWarn = onWarn ?? (() => {});
     this.scanImpl = scanImpl;
     this.metricsIntervalMs = metricsIntervalMs;
@@ -150,31 +161,119 @@ export class DockyardService {
     for (const problem of problems) this.onWarn(problem);
     await mkdir(this.logDir, { recursive: true });
     await mkdir(this.metricsDir, { recursive: true });
+    await mkdir(this.runtimeDir, { recursive: true });
     await this.#reattachManagedProcesses();
     this.#startMetrics();
     this.#startSync();
   }
 
+  /** @param {string} id */
+  #runtimePath(id) {
+    const digest = createHash('sha256').update(id).digest('hex').slice(0, 32);
+    return join(this.runtimeDir, `${digest}.json`);
+  }
+
+  /**
+   * 读取全部运行时记录。它们是 pid + 日志文件 + 进程身份的第二份存盘凭据，
+   * 即使 state.json 里的 pid 被旧版本清掉，也还能靠它接回进程。
+   * @returns {Promise<Map<string, any>>}
+   */
+  async #readRuntimeRecords() {
+    /** @type {Map<string, any>} */
+    const records = new Map();
+    let names = [];
+    try {
+      names = await readdir(this.runtimeDir);
+    } catch {
+      return records;
+    }
+    for (const name of names) {
+      if (!name.endsWith('.json')) continue;
+      try {
+        const raw = JSON.parse(await readFile(join(this.runtimeDir, name), 'utf8'));
+        if (raw && typeof raw.appId === 'string' && Number.isInteger(raw.pid)) {
+          records.set(raw.appId, raw);
+        }
+      } catch {
+        // 坏文件不影响其他应用。
+      }
+    }
+    return records;
+  }
+
+  /**
+   * @param {any} record
+   * @param {number} pid
+   */
+  async #writeRuntimeRecord(record, pid) {
+    const info = /** @type {any} */ (
+      await this.processInspector(pid).catch(() => ({ alive: false }))
+    );
+    const payload = {
+      appId: record.id,
+      pid,
+      startedAt: record.startedAt ?? Date.now(),
+      logFile: record.logFile,
+      command: record.command,
+      args: record.args,
+      processCommand: info.command,
+      executable: info.comm,
+      processStartedAt: info.startedAtText,
+    };
+    try {
+      await mkdir(this.runtimeDir, { recursive: true });
+      const file = this.#runtimePath(record.id);
+      const temp = `${file}.tmp`;
+      await writeFile(temp, JSON.stringify(payload, null, 2), 'utf8');
+      await rename(temp, file);
+    } catch {
+      // 运行时记录写失败不阻塞启动；state.json 里的 pid 仍可用。
+    }
+  }
+
+  /** @param {string} id */
+  async #removeRuntimeRecord(id) {
+    try {
+      await unlink(this.#runtimePath(id));
+    } catch {
+      // 不存在或已删除都算完成。
+    }
+  }
+
+  /**
+   * 判断 runtime 记录和当前 pid 是否指向同一个进程。
+   * 优先比较 ps lstart（pid 复用后启动时间一定不同），其次比较完整命令行。
+   * @param {any} runtime
+   * @param {{ command?: string, startedAtText?: string }} info
+   * @param {number} pid
+   */
+  #runtimeMatches(runtime, info, pid) {
+    if (!runtime || runtime.pid !== pid) return false;
+    if (runtime.processStartedAt && info.startedAtText) {
+      return runtime.processStartedAt === info.startedAtText;
+    }
+    if (runtime.processCommand && info.command) {
+      return runtime.processCommand === info.command;
+    }
+    return false;
+  }
+
   /**
    * 宿主重启后，根据状态里的 pid 重新认领仍在运行的启动器。
    *
-   * 只认命令行里带 app-launcher.mjs 且进程组号等于 pid 的进程：
-   * 这样既能把仍活着的托管应用接回来，也不会把 pid 复用后的陌生进程误认成自己的。
-   * 认领失败（进程已退出/不是启动器）时如实降级为 crashed/unknown，绝不自动启动。
+   * 优先读 runtime 记录，用启动时间/命令行核对同一进程；没有 runtime 时退回
+   * app-launcher.mjs + 进程组校验。这样既能把仍活着的托管应用接回来，也不会把
+   * pid 复用后的陌生进程误认成自己的。认领失败时如实降级，绝不自动启动。
    * @returns {Promise<number>} 重新接管的数量
    */
   async #reattachManagedProcesses() {
+    const runtimes = await this.#readRuntimeRecords();
     let changed = false;
     let reattached = 0;
     for (const record of this.store.list()) {
-      if (
-        record.status !== 'running' &&
-        record.status !== 'starting' &&
-        record.status !== 'stopping'
-      ) {
-        continue;
-      }
-      const pid = record.pid;
+      if (record.status === 'stopped') continue;
+      const runtime = runtimes.get(record.id);
+      const pid = runtime?.pid ?? record.pid;
       if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 1) continue;
       const info = await this.processInspector(pid);
       if (!info.alive) {
@@ -185,24 +284,31 @@ export class DockyardService {
         if (record.guard?.active) {
           this.#deactivateGuard(record, '宿主重启后发现进程已退出，守护暂停，未自动启动。');
         }
-        changed = true;
-        continue;
-      }
-      const isLauncher =
-        typeof info.command === 'string' &&
-        info.command.includes('app-launcher.mjs') &&
-        info.pgid === pid;
-      if (!isLauncher) {
-        record.status = 'unknown';
-        record.statusReason = '进程仍存在，但不是本插件的启动器，未重新接管。';
-        record.pid = undefined;
-        if (record.guard?.active) {
-          this.#deactivateGuard(record, '未能确认原启动器，守护暂停，未自动启动。');
-        }
+        await this.#removeRuntimeRecord(record.id);
         changed = true;
         continue;
       }
 
+      const identityMatches = this.#runtimeMatches(runtime, info, pid);
+      const launcherMatches =
+        typeof info.command === 'string' &&
+        info.command.includes('app-launcher.mjs') &&
+        info.pgid === pid;
+      if (!identityMatches && !launcherMatches) {
+        record.status = 'unknown';
+        record.statusReason = '进程仍存在，但身份与运行时记录不符，未重新接管。';
+        record.pid = undefined;
+        if (record.guard?.active) {
+          this.#deactivateGuard(record, '未能确认原启动器，守护暂停，未自动启动。');
+        }
+        await this.#removeRuntimeRecord(record.id);
+        changed = true;
+        continue;
+      }
+
+      if (runtime?.logFile && typeof runtime.logFile === 'string') {
+        record.logFile = runtime.logFile;
+      }
       /** @type {any} */
       const handle = {
         id: record.id,
@@ -211,11 +317,12 @@ export class DockyardService {
         command: record.command,
         args: record.args,
         cwd: record.dir,
-        startedAt: record.startedAt ?? Date.now(),
+        startedAt: record.startedAt ?? runtime?.startedAt ?? Date.now(),
         ownsProcessGroup: true,
       };
       this.processes.set(record.id, handle);
       record.status = 'running';
+      record.pid = pid;
       record.statusReason = `宿主重启后已重新接管（pid ${pid}）。`;
       if (record.guard?.active) {
         record.guard.nextAttemptAt = undefined;
@@ -224,6 +331,11 @@ export class DockyardService {
       reattached += 1;
       changed = true;
       await this.#appendSystemLog(record.logFile, record.statusReason);
+    }
+
+    const known = new Set(this.store.list().map((record) => record.id));
+    for (const id of runtimes.keys()) {
+      if (!known.has(id)) await this.#removeRuntimeRecord(id);
     }
     if (changed) await this.store.save();
     return reattached;
@@ -795,6 +907,7 @@ export class DockyardService {
     }
     for (const record of records) {
       this.#clearGuardTimer(record.id);
+      await this.#removeRuntimeRecord(record.id);
       this.store.remove(record.id);
     }
     await this.store.save();
@@ -817,6 +930,7 @@ export class DockyardService {
       return { removed: false, reason: '应用处于运行状态，请先停止再移除。' };
     }
     this.#clearGuardTimer(id);
+    await this.#removeRuntimeRecord(id);
     this.store.remove(id);
     this.metrics.delete(id);
     this.metricsHistory.delete(id);
@@ -1447,6 +1561,7 @@ export class DockyardService {
               : `进程异常退出（code=${detail.code} signal=${detail.signal}）。`,
           );
           void this.store.save();
+          void this.#removeRuntimeRecord(id);
           if (status !== 'stopped') this.#scheduleGuardRetry(id);
         },
       });
@@ -1458,6 +1573,7 @@ export class DockyardService {
       record.startedAt = Date.now();
       record.stoppedAt = undefined;
       record.exitCode = undefined;
+      await this.#writeRuntimeRecord(record, handle.pid);
       if (record.guard?.active) {
         record.guard.lastStartAt = Date.now();
         record.guard.nextAttemptAt = undefined;
@@ -1517,6 +1633,7 @@ export class DockyardService {
         record.statusReason = `已停止 ${stoppedCount} 个外部进程。`;
         record.stoppedAt = Date.now();
         record.pid = undefined;
+        await this.#removeRuntimeRecord(id);
         await this.store.save();
         this.externalAppsCache = null;
         return { stopped: true, reason: record.statusReason };
@@ -1526,11 +1643,13 @@ export class DockyardService {
       if (record.status === 'unknown') {
         record.status = 'stopped';
         record.statusReason = '用户确认标记为已停止（本插件无法回收非本进程启动的进程）。';
+        await this.#removeRuntimeRecord(id);
         await this.store.save();
         return { stopped: true, reason: record.statusReason };
       }
       record.status = 'stopped';
       record.statusReason = '应用未在运行。';
+      await this.#removeRuntimeRecord(id);
       await this.store.save();
       return { stopped: true, reason: '应用未在运行。' };
     }
@@ -1542,6 +1661,7 @@ export class DockyardService {
       record.stoppedAt = Date.now();
       record.pid = undefined;
       this.processes.delete(id);
+      await this.#removeRuntimeRecord(id);
     } else {
       record.status = 'crashed';
       record.statusReason = result.reason;
@@ -1629,6 +1749,7 @@ export class DockyardService {
           record.statusReason = '插件卸载时按要求停止了进程。';
           record.stoppedAt = Date.now();
           record.pid = undefined;
+          await this.#removeRuntimeRecord(id);
         }
       }
       this.processes.clear();

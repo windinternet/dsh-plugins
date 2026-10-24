@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DockyardService, candidateId, renderLogLines } from '../src/service.js';
@@ -1390,5 +1390,60 @@ test('访问端口：按进程组聚合监听端口，并记住偏好端口', as
     assert.equal(updated.preferredPort, 4001);
   } finally {
     await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});
+
+test('宿主重启后即使 state.pid 丢失，runtime 记录仍能接回进程', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dockyard-runtime-'));
+  try {
+    const script = join(dir, 'child.mjs');
+    await writeLongRunning(script);
+    const first = makeService(dir, []);
+    await first.init();
+    await first.add({
+      id: 'runtime-persist',
+      name: 'runtime-persist',
+      dir,
+      runner: 'node',
+      command: process.execPath,
+      args: [script],
+      reason: '测试夹具',
+    });
+    const started = await first.start('runtime-persist');
+    await first.shutdown();
+
+    const runtimeFiles = await readdir(join(dir, 'runtime'));
+    assert.equal(runtimeFiles.length, 1, '启动后应写 runtime 记录');
+    const runtimeFile = runtimeFiles[0];
+    assert.ok(runtimeFile);
+    const runtime = JSON.parse(await readFile(join(dir, 'runtime', runtimeFile), 'utf8'));
+    assert.equal(runtime.pid, started.pid);
+    assert.match(runtime.logFile, /logs/);
+
+    // 模拟旧版本/异常情况把 state 里的 pid 和状态清掉，只剩 runtime 文件。
+    const statePath = join(dir, 'state.json');
+    const state = JSON.parse(await readFile(statePath, 'utf8'));
+    state.applications['runtime-persist'].status = 'unknown';
+    state.applications['runtime-persist'].pid = undefined;
+    await writeFile(statePath, JSON.stringify(state), 'utf8');
+
+    const second = makeService(dir, [], undefined, {
+      processInspector: async (/** @type {number} */ pid) => ({
+        alive: true,
+        pgid: pid,
+        command: 'node /tmp/app-launcher.mjs',
+      }),
+    });
+    await second.init();
+    const reloaded = pick(await second.list(), 'runtime-persist');
+    assert.equal(reloaded.status, 'running');
+    assert.equal(reloaded.pid, started.pid);
+    assert.match(reloaded.statusReason, /重新接管/);
+
+    await second.stop('runtime-persist');
+    const runtimeAfterStop = await readdir(join(dir, 'runtime')).catch(() => []);
+    assert.equal(runtimeAfterStop.length, 0, '停止后应清理 runtime 记录');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
   }
 });

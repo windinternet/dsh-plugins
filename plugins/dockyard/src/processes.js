@@ -123,7 +123,7 @@ export function parsePsGroups(text) {
  * 查看一个进程的进程组与命令行，用于宿主重启后的托管重认领。
  * @param {number} pid
  * @param {{ platform?: NodeJS.Platform }} [options]
- * @returns {Promise<{ alive: boolean, pgid?: number, command?: string, error?: string }>}
+ * @returns {Promise<{ alive: boolean, pgid?: number, command?: string, comm?: string, startedAtText?: string, error?: string }>}
  */
 export async function inspectProcess(pid, options = {}) {
   if (!Number.isInteger(pid) || pid <= 1) return { alive: false };
@@ -133,16 +133,29 @@ export async function inspectProcess(pid, options = {}) {
   }
   const psCommand = platform === 'darwin' ? '/bin/ps' : 'ps';
   try {
-    const result = await execFileAsync(psCommand, ['-p', String(pid), '-o', 'pgid=,command='], {
-      timeout: 3000,
-      maxBuffer: 1024 * 1024,
-      encoding: 'utf8',
-    });
-    const line = String(result.stdout).trim();
+    const [infoResult, startResult] = await Promise.all([
+      execFileAsync(psCommand, ['-p', String(pid), '-o', 'pgid=,comm=,command='], {
+        timeout: 3000,
+        maxBuffer: 1024 * 1024,
+        encoding: 'utf8',
+      }),
+      execFileAsync(psCommand, ['-p', String(pid), '-o', 'lstart='], {
+        timeout: 3000,
+        maxBuffer: 1024 * 1024,
+        encoding: 'utf8',
+      }),
+    ]);
+    const line = String(infoResult.stdout).trim();
     if (line === '') return { alive: false };
-    const match = line.match(/^(\d+)\s+(.*)$/);
+    const match = line.match(/^(\d+)\s+(\S+)\s+(.*)$/);
     if (!match) return { alive: false, error: '无法解析进程信息。' };
-    return { alive: true, pgid: Number(match[1]), command: match[2] ?? '' };
+    return {
+      alive: true,
+      pgid: Number(match[1]),
+      comm: match[2] ?? '',
+      command: match[3] ?? '',
+      startedAtText: String(startResult.stdout).trim(),
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { alive: false, error: `无法检查进程 ${pid}：${message}` };
